@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const dir = 'c:\\Users\\alcsilva\\Downloads\\contatos';
+const dir = __dirname;
 const contactsData = fs.readFileSync(path.join(dir, 'catalogo_contatos.json'), 'utf8');
 const contacts = JSON.parse(contactsData);
 
