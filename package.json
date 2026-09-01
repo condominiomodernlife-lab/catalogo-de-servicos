@@ -1,9 +1,5 @@
 {
   "name": "catalogo-de-servicos",
   "version": "1.0.0",
-  "description": "Catálogo de Serviços",
-  "main": "index.html",
-  "scripts": {
-    "build": "echo 'Static build ready'"
-  }
+  "private": true
 }
