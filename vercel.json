@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "name": "catalogo-de-servicos",
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" }
+  ]
+}

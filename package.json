@@ -1,0 +1,13 @@
+{
+  "name": "catalogo-de-servicos",
+  "version": "1.0.0",
+  "description": "Catálogo inteligente de serviços e contatos importados de arquivos VCF",
+  "main": "index.html",
+  "scripts": {
+    "build": "node build_html.js",
+    "import": "node import_vcf.js"
+  },
+  "keywords": ["catalogo", "servicos", "vcf", "contacts", "whatsapp"],
+  "author": "",
+  "license": "ISC"
+}
