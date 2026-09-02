@@ -1,6 +1,6 @@
 {
-  "name": "Catálogo de Serviços",
-  "short_name": "Catálogo",
+  "name": "Serviços BF",
+  "short_name": "Serviços BF",
   "description": "Guia inteligente de serviços e fornecedores",
   "start_url": "/index.html",
   "scope": "/",
