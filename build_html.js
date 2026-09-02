@@ -286,7 +286,7 @@ const htmlContent = `<!DOCTYPE html>
     <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
         <i class="bi bi-shield-lock-fill me-2"></i>
-        <strong>Modo Administrador Ativo (Serviços BF)</strong> — Banco de dados em nuvem ativado.
+        <strong>Modo Administrador Ativo (Serviços BF)</strong> — Sincronização em tempo real ativada.
       </div>
       <div class="d-flex align-items-center gap-2">
         <button class="btn btn-sm btn-outline-primary text-dark" onclick="syncAllToSupabase()">
@@ -668,7 +668,6 @@ const htmlContent = `<!DOCTYPE html>
         rating: c.rating || 0
       }));
 
-      // Inserir em lotes de 100
       let successCount = 0;
       for (let i = 0; i < payload.length; i += 100) {
         const batch = payload.slice(i, i + 100);
@@ -832,7 +831,6 @@ const htmlContent = `<!DOCTYPE html>
       const activeList = getActiveDataset();
       const query = searchInput.value.toLowerCase().trim();
 
-      // Check if user is in initial empty state
       if (currentCategory === 'NONE' && !query && !onlyFavorites && minRatingFilter === 0) {
         visibleCount.innerText = 0;
         activeCategoryLabel.innerText = 'Selecione uma categoria ou pesquise acima';
@@ -872,17 +870,14 @@ const htmlContent = `<!DOCTYPE html>
         const c = activeList[i];
         const userRating = ratings[c.filename] !== undefined ? ratings[c.filename] : (c.rating || 0);
 
-        // Filter by category
         if (currentCategory !== 'ALL' && currentCategory !== 'NONE' && c.category !== currentCategory) {
           continue;
         }
 
-        // Filter by favorites
         if (onlyFavorites && !favorites.includes(c.filename)) {
           continue;
         }
 
-        // Filter by rating / instagram
         if (minRatingFilter === 'insta') {
           if (!c.instagram) continue;
         } else if (minRatingFilter === 'unrated') {
@@ -891,7 +886,6 @@ const htmlContent = `<!DOCTYPE html>
           if (userRating < minRatingFilter) continue;
         }
 
-        // Filter by search query
         if (query) {
           const matchText = (c.name + ' ' + c.org + ' ' + c.category + ' ' + c.phone_primary + ' ' + (c.instagram || '') + ' ' + c.wa_description + ' ' + c.note).toLowerCase();
           if (!matchText.includes(query)) {
@@ -1007,7 +1001,7 @@ const htmlContent = `<!DOCTYPE html>
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
-    function setRating(filename, score) {
+    async function setRating(filename, score) {
       if (ratings[filename] === score) {
         delete ratings[filename];
       } else {
@@ -1015,9 +1009,14 @@ const htmlContent = `<!DOCTYPE html>
       }
       localStorage.setItem('ratings_contacts', JSON.stringify(ratings));
 
-      // Sincronizar nota no Supabase
+      // Atualização imediata no Supabase Cloud DB
       if (supabaseClient) {
-        supabaseClient.from('contatos').update({ rating: score }).eq('filename', filename);
+        try {
+          await supabaseClient.from('contatos').update({ rating: score }).eq('filename', filename);
+          console.log('Nota atualizada no Supabase:', filename, score);
+        } catch(e) {
+          console.error('Erro ao atualizar nota no Supabase:', e);
+        }
       }
       renderContacts();
     }
@@ -1074,7 +1073,7 @@ const htmlContent = `<!DOCTYPE html>
               activeList.push(newC);
               newContactsAdded++;
 
-              // Enviar direto para o Supabase
+              // Atualizar no Supabase Cloud DB
               if (supabaseClient) {
                 await supabaseClient.from('contatos').upsert([{
                   filename: newC.filename,
@@ -1096,7 +1095,7 @@ const htmlContent = `<!DOCTYPE html>
           if (processedCount === files.length) {
             localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
             showAllContacts();
-            alert('✅ Importação concluída! ' + newContactsAdded + ' novo(s) contato(s) adicionado(s) com sucesso ao catálogo.');
+            alert('✅ Importação concluída! ' + newContactsAdded + ' novo(s) contato(s) adicionado(s) e sincronizados no banco de dados Supabase.');
             document.getElementById('vcf-file-input').value = '';
           }
         };
@@ -1300,15 +1299,18 @@ const htmlContent = `<!DOCTYPE html>
         waLink = 'https://wa.me/' + digits;
       }
 
+      const fileKey = id || ('novo_' + Date.now() + '.vcf');
+
       const updatedObj = {
-        name,
-        org,
-        category,
+        filename: fileKey,
+        name: name,
+        org: org,
+        category: category,
         instagram: insta,
         phone_primary: phone,
         phones: phone ? [phone] : [],
         wa_link: waLink,
-        email,
+        email: email,
         wa_description: desc,
         rating: ratingVal
       };
@@ -1316,16 +1318,35 @@ const htmlContent = `<!DOCTYPE html>
       if (id) {
         customEdits[id] = updatedObj;
         localStorage.setItem('contacts_edits', JSON.stringify(customEdits));
-        if (supabaseClient) {
-          await supabaseClient.from('contatos').upsert([{ filename: id, ...updatedObj }]);
-        }
       } else {
-        const newFilename = 'novo_' + Date.now() + '.vcf';
-        const newObj = { filename: newFilename, ...updatedObj, note: '' };
-        addedContacts.push(newObj);
+        addedContacts.push({ ...updatedObj, note: '' });
         localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
-        if (supabaseClient) {
-          await supabaseClient.from('contatos').upsert([newObj]);
+      }
+
+      // Sincronização Direta no Supabase Cloud DB
+      if (supabaseClient) {
+        try {
+          const { error } = await supabaseClient.from('contatos').upsert([{
+            filename: fileKey,
+            name: name,
+            org: org || '',
+            category: category || 'Outros / Gerais',
+            phone_primary: phone || '',
+            instagram: insta || '',
+            wa_link: waLink || '',
+            email: email || '',
+            wa_description: desc || '',
+            rating: ratingVal || 0
+          }], { onConflict: 'filename' });
+
+          if (error) {
+            console.error('Erro ao salvar no Supabase:', error);
+          } else {
+            console.log('Contato salvo com sucesso no Supabase!');
+            loadSupabaseData();
+          }
+        } catch(e) {
+          console.error('Falha de rede no Supabase:', e);
         }
       }
 
@@ -1335,14 +1356,27 @@ const htmlContent = `<!DOCTYPE html>
 
     async function deleteContact(filename, name) {
       if (!isAdmin) return;
-      if (confirm('Tem certeza que deseja EXCLUIR PERMANENTEMENTE o contato "' + name + '"?\\n\\nEle será adicionado à lista negra e excluído do banco de dados.')) {
+      if (confirm('Tem certeza que deseja EXCLUIR PERMANENTEMENTE o contato "' + name + '"?\\n\\nEle será excluído do banco de dados na nuvem e de todos os dispositivos.')) {
         if (!deletedIds.includes(filename)) {
           deletedIds.push(filename);
         }
         localStorage.setItem('contacts_deleted', JSON.stringify(deletedIds));
+
+        // Exclusão no Supabase Cloud DB
         if (supabaseClient) {
-          await supabaseClient.from('contatos').delete().eq('filename', filename);
+          try {
+            const { error } = await supabaseClient.from('contatos').delete().eq('filename', filename);
+            if (error) {
+              console.error('Erro ao excluir no Supabase:', error);
+            } else {
+              console.log('Contato excluído do Supabase com sucesso!');
+              loadSupabaseData();
+            }
+          } catch(e) {
+            console.error('Falha de exclusão no Supabase:', e);
+          }
         }
+
         renderContacts();
       }
     }
@@ -1466,4 +1500,4 @@ const htmlContent = `<!DOCTYPE html>
 
 fs.writeFileSync(path.join(dir, 'catalogo_servicos.html'), htmlContent, 'utf8');
 fs.writeFileSync(path.join(dir, 'index.html'), htmlContent, 'utf8');
-console.log('build_html.js atualizado com o nome Serviços BF!');
+console.log('build_html.js atualizado com sincronização total do Supabase em edição, exclusão e avaliação!');
