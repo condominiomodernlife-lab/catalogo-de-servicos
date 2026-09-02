@@ -16,14 +16,61 @@ for (const c of contacts) {
   if (c.instagram) instaCount++;
 }
 
+const categoryIcons = {
+  'Climatização & Refrigeração': '❄️',
+  'Elétrica & Eletrônica': '⚡',
+  'Construção & Reformas': '🛠️',
+  'Serviços Domésticos & Manutenção': '🧹',
+  'Saúde & Médicos': '🩺',
+  'Gastronomia, Alimentos & Festas': '🍕',
+  'Fretes, Mudanças & Veículos': '🚚',
+  'Pet & Veterinária': '🐾',
+  'Beleza & Cuidados Pessoais': '✂️',
+  'Tecnologia & Informática': '💻',
+  'Costura, Estofados & Decoração': '🧵',
+  'Outros / Gerais': '📦'
+};
+
+const sortedCategories = Object.entries(categoriesMap).sort((a,b) => b[1] - a[1]);
+
 const htmlContent = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Catálogo de Serviços - com Instagram & Fotos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  
+  <!-- Security & Reputation Meta Tags -->
+  <meta name="description" content="Catálogo Inteligente de Serviços e Fornecedores Condominiais com Banco de Dados em Tempo Real.">
+  <meta name="author" content="Condomínio Modern Life">
+  <meta name="robots" content="index, follow">
+  
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="Catálogo de Serviços - Guia de Fornecedores">
+  <meta property="og:description" content="Guia de fornecedores e prestadores de serviços recomendados com sincronização em tempo real.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Catálogo de Serviços">
+
+  <!-- PWA & Mobile Install Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1e3c72">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Catálogo">
+  <link rel="apple-touch-icon" href="/icon-192.svg">
+  <link rel="icon" type="image/svg+xml" href="/icon-192.svg">
+  <link rel="shortcut icon" href="/icon-192.svg">
+
+  <title>Catálogo de Serviços - Guia de Fornecedores</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  
+  <!-- Supabase Cloud DB Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <style>
     :root {
       --primary-color: #0d6efd;
@@ -59,20 +106,6 @@ const htmlContent = `<!DOCTYPE html>
       box-shadow: 0 4px 12px rgba(0,0,0,0.05);
       border: 1px solid #ced4da;
       font-size: 1.05rem;
-    }
-    .category-badge {
-      cursor: pointer;
-      user-select: none;
-      transition: all 0.2s ease;
-      font-weight: 500;
-      padding: 0.5em 0.9em;
-      border-radius: 50px;
-      margin-right: 0.3rem;
-      margin-bottom: 0.5rem;
-      display: inline-block;
-    }
-    .category-badge.active {
-      box-shadow: 0 4px 10px rgba(13, 110, 253, 0.3);
     }
     .contact-card {
       border: none;
@@ -239,23 +272,31 @@ const htmlContent = `<!DOCTYPE html>
     body.is-admin .admin-bar {
       display: block;
     }
+    .db-status-badge {
+      font-size: 0.78rem;
+      padding: 0.35em 0.75em;
+      border-radius: 50px;
+    }
   </style>
 </head>
 <body>
 
   <!-- Admin Bar -->
   <div class="admin-bar">
-    <div class="container d-flex justify-content-between align-items-center">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
         <i class="bi bi-shield-lock-fill me-2"></i>
-        <strong>Modo Administrador Ativo</strong> — Você pode adicionar fotos do Instagram, editar e excluir contatos.
+        <strong>Modo Administrador Ativo</strong> — Banco de dados em nuvem ativado em tempo real.
       </div>
-      <div>
-        <button class="btn btn-sm btn-outline-warning text-dark me-2" onclick="changeAdminPasswordModal()">
-          <i class="bi bi-key me-1"></i> Alterar Senha
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-primary text-dark" onclick="syncAllToSupabase()">
+          <i class="bi bi-cloud-upload me-1"></i> Sincronizar Supabase
+        </button>
+        <button class="btn btn-sm btn-outline-warning text-dark" onclick="changeAdminPasswordModal()">
+          <i class="bi bi-key me-1"></i> Senha
         </button>
         <button class="btn btn-sm btn-dark" onclick="logoutAdmin()">
-          <i class="bi bi-box-arrow-right me-1"></i> Sair do Modo Admin
+          <i class="bi bi-box-arrow-right me-1"></i> Sair
         </button>
       </div>
     </div>
@@ -268,8 +309,11 @@ const htmlContent = `<!DOCTYPE html>
         <div class="col-md-7">
           <div class="d-flex align-items-center gap-2 mb-2">
             <h1 class="fw-bold mb-0"><i class="bi bi-journal-bookmark-fill me-2"></i>Catálogo de Serviços</h1>
+            <span id="db-status" class="badge bg-success-subtle text-success border border-success-subtle db-status-badge">
+              <i class="bi bi-wifi me-1"></i> Supabase Realtime On
+            </span>
           </div>
-          <p class="mb-0 text-white-50">Guia inteligente de fornecedores com imagens e perfis do Instagram.</p>
+          <p class="mb-0 text-white-50">Encontre prestadores recomendados com sincronização em tempo real.</p>
         </div>
         <div class="col-md-5 mt-3 mt-md-0">
           <div class="row g-2">
@@ -281,7 +325,7 @@ const htmlContent = `<!DOCTYPE html>
             </div>
             <div class="col-4">
               <div class="stat-card">
-                <h3 class="fw-bold mb-0" id="stat-cats">${Object.keys(categoriesMap).length}</h3>
+                <h3 class="fw-bold mb-0" id="stat-cats">${sortedCategories.length}</h3>
                 <small class="text-white-50">Categorias</small>
               </div>
             </div>
@@ -302,42 +346,68 @@ const htmlContent = `<!DOCTYPE html>
     <div class="card border-0 shadow-sm rounded-4 mb-4">
       <div class="card-body p-4">
         <div class="row g-3 align-items-center">
-          <div class="col-lg-5 col-md-12">
+          <!-- Search Box -->
+          <div class="col-lg-3 col-md-12">
             <div class="input-group">
               <span class="input-group-text bg-white border-end-0 rounded-start-pill ps-3">
                 <i class="bi bi-search text-muted"></i>
               </span>
               <input type="text" id="search-input" class="form-control border-start-0 search-box rounded-end-pill" 
-                     placeholder="Buscar por nome, serviço, @instagram, empresa...">
+                     placeholder="Buscar por serviço, nome, @insta...">
             </div>
           </div>
+
+          <!-- Category Select Dropdown -->
           <div class="col-lg-3 col-md-6">
+            <select id="category-select" class="form-select rounded-pill">
+              <option value="NONE" selected>📂 Selecione uma Categoria...</option>
+              <option value="ALL">📋 Todas as Categorias (${totalContacts})</option>
+              ${sortedCategories.map(([cat, count]) => `
+                <option value="${cat.replace(/"/g, '&quot;')}">${categoryIcons[cat] || '🏷️'} ${cat} (${count})</option>
+              `).join('')}
+            </select>
+          </div>
+
+          <!-- Rating Select Dropdown -->
+          <div class="col-lg-2 col-md-6">
             <select id="min-rating-select" class="form-select rounded-pill">
-              <option value="0">⭐ Todas as Avaliações</option>
+              <option value="0">⭐ Avaliações</option>
               <option value="5">⭐⭐⭐⭐⭐ (5 Estrelas)</option>
               <option value="4">⭐⭐⭐⭐+ (4 Estrelas ou +)</option>
               <option value="3">⭐⭐⭐+ (3 Estrelas ou +)</option>
-              <option value="insta">📸 Com Instagram Apenas</option>
+              <option value="insta">📸 Com Instagram</option>
               <option value="unrated">Sem Avaliação</option>
             </select>
           </div>
-          <div class="col-lg-4 col-md-6 text-end">
-            <!-- Normal User Mode Login Button -->
-            <button id="admin-login-btn" class="btn btn-outline-secondary rounded-pill me-2" onclick="promptAdminLogin()">
-              <i class="bi bi-lock me-1"></i> Área Admin
+
+          <!-- Admin & Action Buttons -->
+          <div class="col-lg-4 col-md-12 text-lg-end text-center">
+            <!-- PWA Install Button -->
+            <button id="pwa-install-btn" class="btn btn-warning rounded-pill me-1 text-dark fw-semibold" onclick="promptInstallPWA()">
+              <i class="bi bi-phone-vibrate me-1"></i> Instalar App
             </button>
 
-            <!-- Admin Only Buttons -->
-            <button class="btn btn-primary rounded-pill me-2 admin-only" onclick="openAddModal()">
-              <i class="bi bi-plus-lg me-1"></i> Novo Contato
+            <button id="admin-login-btn" class="btn btn-outline-secondary rounded-pill me-1" onclick="promptAdminLogin()">
+              <i class="bi bi-lock me-1"></i> Admin
+            </button>
+
+            <button class="btn btn-success rounded-pill me-1 admin-only" onclick="triggerVcfUpload()">
+              <i class="bi bi-file-earmark-arrow-up me-1"></i> VCF
+            </button>
+            <input type="file" id="vcf-file-input" accept=".vcf" multiple style="display:none;" onchange="handleVCFFileSelect(event)">
+
+            <button class="btn btn-primary rounded-pill me-1 admin-only" onclick="openAddModal()">
+              <i class="bi bi-plus-lg me-1"></i> Novo
             </button>
             <div class="btn-group admin-only">
               <button class="btn btn-outline-success rounded-pill dropdown-toggle" data-bs-toggle="dropdown">
-                <i class="bi bi-download me-1"></i> Exportar
+                <i class="bi bi-download"></i>
               </button>
               <ul class="dropdown-menu dropdown-menu-end shadow">
                 <li><a class="dropdown-item" href="#" onclick="exportCSV(event)"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Exportar CSV</a></li>
                 <li><a class="dropdown-item" href="#" onclick="exportJSON(event)"><i class="bi bi-filetype-json me-2 text-primary"></i>Exportar JSON</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="#" onclick="exportBlacklist(event)"><i class="bi bi-shield-x me-2"></i>Baixar contatos_excluidos.json</a></li>
               </ul>
             </div>
             <button id="toggle-favs-btn" class="btn btn-outline-warning rounded-pill ms-1" title="Ver Favoritos">
@@ -345,37 +415,63 @@ const htmlContent = `<!DOCTYPE html>
             </button>
           </div>
         </div>
-
-        <hr class="my-3 text-muted opacity-25">
-
-        <!-- Category Pills -->
-        <div id="categories-container" class="d-flex flex-wrap align-items-center">
-          <span class="badge bg-primary category-badge active" data-category="ALL">
-            Todos (${totalContacts})
-          </span>
-          ${Object.entries(categoriesMap).sort((a,b) => b[1] - a[1]).map(([cat, count]) => `
-            <span class="badge bg-light text-dark border category-badge" data-category="${cat.replace(/"/g, '&quot;')}">
-              ${cat} (${count})
-            </span>
-          `).join('')}
-        </div>
       </div>
     </div>
 
     <!-- Results Info Bar -->
     <div class="d-flex justify-content-between align-items-center mb-3 text-muted">
-      <div>Exibindo <strong id="visible-count">${totalContacts}</strong> contatos</div>
+      <div><strong id="visible-count">0</strong> contatos exibidos</div>
       <div class="d-flex align-items-center gap-3">
-        <div id="active-category-label" class="fw-semibold text-primary">Categoria: Todas</div>
+        <div id="active-category-label" class="fw-semibold text-primary">Selecione uma categoria ou pesquise acima</div>
         <button id="reset-edits-btn" class="btn btn-sm btn-link text-muted p-0 text-decoration-none admin-only" onclick="resetChanges()">
-          <i class="bi bi-arrow-counterclockwise"></i> Restaurar dados originais
+          <i class="bi bi-arrow-counterclockwise"></i> Restaurar originais
         </button>
       </div>
     </div>
 
     <!-- Contacts Grid -->
     <div class="row g-3" id="contacts-grid">
-      <!-- Generated via JS -->
+      <!-- Initial Landing / Empty State or Filtered Cards -->
+    </div>
+  </div>
+
+  <!-- Modal Instruções de Instalação PWA iOS/Android -->
+  <div class="modal fade" id="pwaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom-0 pb-0">
+          <h5 class="modal-title fw-bold"><i class="bi bi-phone me-2 text-primary"></i>Instalar Aplicativo no Celular</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="text-center mb-3">
+            <div class="bg-primary-subtle text-primary d-inline-flex p-3 rounded-circle mb-2">
+              <i class="bi bi-phone-vibrate display-5"></i>
+            </div>
+            <h6 class="fw-bold">Adicione o Catálogo à sua Tela Inicial</h6>
+            <p class="text-muted small mb-0">Acesse o guia de fornecedores como um aplicativo nativo no celular, sem precisar digitar o site!</p>
+          </div>
+
+          <div class="card border-0 bg-light rounded-3 p-3 mb-3">
+            <h6 class="fw-bold text-dark mb-2"><i class="bi bi-apple me-1"></i> No iPhone / iPad (Safari):</h6>
+            <ol class="small text-muted mb-0 ps-3">
+              <li class="mb-1">Toque no ícone de <strong>Compartilhar</strong> <i class="bi bi-box-arrow-up text-primary"></i> (na barra inferior do Safari).</li>
+              <li>Role para baixo e selecione <strong>"Adicionar à Tela de Início"</strong> <i class="bi bi-plus-square text-primary"></i>.</li>
+            </ol>
+          </div>
+
+          <div class="card border-0 bg-light rounded-3 p-3">
+            <h6 class="fw-bold text-dark mb-2"><i class="bi bi-android2 me-1 text-success"></i> No Android (Chrome / Samsung):</h6>
+            <ol class="small text-muted mb-0 ps-3">
+              <li class="mb-1">Toque nos <strong>3 pontinhos</strong> <i class="bi bi-three-dots-vertical"></i> no canto superior do navegador.</li>
+              <li>Clique em <strong>"Instalar Aplicativo"</strong> ou <strong>"Adicionar à tela inicial"</strong>.</li>
+            </ol>
+          </div>
+        </div>
+        <div class="modal-footer border-top-0 pt-0">
+          <button type="button" class="btn btn-primary rounded-pill px-4 w-100" data-bs-dismiss="modal">Entendido!</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -403,7 +499,7 @@ const htmlContent = `<!DOCTYPE html>
                 <label class="form-label fw-semibold small">Categoria</label>
                 <input type="text" id="edit-category" class="form-control rounded-3" list="categoryOptions" placeholder="Ex: Elétrica & Eletrônica">
                 <datalist id="categoryOptions">
-                  ${Object.keys(categoriesMap).map(c => `<option value="${c.replace(/"/g, '&quot;')}">`).join('')}
+                  ${sortedCategories.map(([c]) => `<option value="${c.replace(/"/g, '&quot;')}">`).join('')}
                 </datalist>
               </div>
             </div>
@@ -453,6 +549,46 @@ const htmlContent = `<!DOCTYPE html>
   <script>
     const INITIAL_CONTACTS = ${JSON.stringify(contacts)};
     
+    // Configuração Supabase Realtime
+    const SUPABASE_URL = 'https://ioakxfrwgykxkgnrzxqz.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvYWt4ZnJ3Z3lreGtnbnJ6eHF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTY5NjEsImV4cCI6MjEwMzkzMjk2MX0.pWL-sJa1ueuKCVaP5EfFLvghbeI3YM-PZ5o2fGSC-RM';
+    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+    let supabaseContacts = null;
+
+    // Register PWA Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(reg => {
+          console.log('PWA ServiceWorker ativo no escopo:', reg.scope);
+        }).catch(err => {
+          console.log('ServiceWorker PWA:', err);
+        });
+      });
+    }
+
+    // PWA Install Prompt Event
+    let deferredPrompt = null;
+    const pwaModal = new bootstrap.Modal(document.getElementById('pwaModal'));
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    function promptInstallPWA() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('Usuário aceitou a instalação do PWA');
+          }
+          deferredPrompt = null;
+        });
+      } else {
+        pwaModal.show();
+      }
+    }
+
     // Admin state
     const DEFAULT_PASS = 'admin123';
     let isAdmin = sessionStorage.getItem('is_admin') === 'true';
@@ -464,22 +600,85 @@ const htmlContent = `<!DOCTYPE html>
     let favorites = JSON.parse(localStorage.getItem('fav_contacts') || '[]');
     let ratings = JSON.parse(localStorage.getItem('ratings_contacts') || '{}');
 
-    let currentCategory = 'ALL';
+    let currentCategory = 'NONE';
     let onlyFavorites = false;
     let minRatingFilter = 0;
 
     const grid = document.getElementById('contacts-grid');
     const searchInput = document.getElementById('search-input');
+    const categorySelect = document.getElementById('category-select');
+    const minRatingSelect = document.getElementById('min-rating-select');
     const visibleCount = document.getElementById('visible-count');
     const activeCategoryLabel = document.getElementById('active-category-label');
     const toggleFavsBtn = document.getElementById('toggle-favs-btn');
-    const minRatingSelect = document.getElementById('min-rating-select');
     const statTotal = document.getElementById('stat-total');
     const statInsta = document.getElementById('stat-insta');
     const resetEditsBtn = document.getElementById('reset-edits-btn');
     const adminLoginBtn = document.getElementById('admin-login-btn');
 
     const contactModal = new bootstrap.Modal(document.getElementById('contactModal'));
+
+    // Carregamento Supabase em Tempo Real
+    async function loadSupabaseData() {
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient.from('contatos').select('*');
+        if (!error && data && data.length > 0) {
+          supabaseContacts = data;
+          document.getElementById('db-status').innerHTML = '<i class="bi bi-wifi me-1"></i> Supabase Online (' + data.length + ')';
+          renderContacts();
+        }
+      } catch (err) {
+        console.log('Supabase read info:', err);
+      }
+    }
+
+    // Iniciar escuta de alterações Realtime
+    if (supabaseClient) {
+      loadSupabaseData();
+      supabaseClient.channel('realtime-contatos')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'contatos' }, () => {
+          console.log('Alteração Realtime vinda do Supabase!');
+          loadSupabaseData();
+        })
+        .subscribe();
+    }
+
+    // Sincronizar todos os 2.428 contatos no Supabase (Botão no Admin Bar)
+    async function syncAllToSupabase() {
+      if (!isAdmin) return;
+      if (!supabaseClient) {
+        alert('Supabase SDK não carregado.');
+        return;
+      }
+      if (!confirm('Deseja enviar os ' + INITIAL_CONTACTS.length + ' contatos estáticos para o seu banco Supabase agora?')) return;
+
+      alert('⏳ Enviando contatos para o Supabase... Aguarde mensagem de confirmação.');
+      
+      const payload = INITIAL_CONTACTS.map(c => ({
+        filename: c.filename,
+        name: c.name,
+        org: c.org || '',
+        category: c.category || 'Outros / Gerais',
+        phone_primary: c.phone_primary || '',
+        instagram: c.instagram || '',
+        wa_link: c.wa_link || '',
+        email: c.email || '',
+        wa_description: c.wa_description || '',
+        rating: c.rating || 0
+      }));
+
+      // Inserir em lotes de 100
+      let successCount = 0;
+      for (let i = 0; i < payload.length; i += 100) {
+        const batch = payload.slice(i, i + 100);
+        const { error } = await supabaseClient.from('contatos').upsert(batch, { onConflict: 'filename' });
+        if (!error) successCount += batch.length;
+      }
+
+      alert('✅ ' + successCount + ' contatos sincronizados com sucesso no Supabase!');
+      loadSupabaseData();
+    }
 
     function applyAdminState() {
       if (isAdmin) {
@@ -531,8 +730,11 @@ const htmlContent = `<!DOCTYPE html>
     }
 
     function getActiveDataset() {
+      // Se tiver dados carregados do Supabase, usa o Supabase
+      const baseList = supabaseContacts || INITIAL_CONTACTS;
       let list = [];
-      for (let c of INITIAL_CONTACTS) {
+
+      for (let c of baseList) {
         if (deletedIds.includes(c.filename)) continue;
         if (customEdits[c.filename]) {
           list.push({ ...c, ...customEdits[c.filename] });
@@ -613,9 +815,57 @@ const htmlContent = `<!DOCTYPE html>
       return \`<div class="star-rating d-inline-block">\${starsHtml}</div>\`;
     }
 
+    function selectCategoryByName(catName) {
+      categorySelect.value = catName;
+      currentCategory = catName;
+      activeCategoryLabel.innerText = 'Categoria: ' + (catName === 'ALL' ? 'Todas' : catName);
+      renderContacts();
+    }
+
+    function showAllContacts() {
+      categorySelect.value = 'ALL';
+      currentCategory = 'ALL';
+      activeCategoryLabel.innerText = 'Exibindo Todos os Contatos';
+      renderContacts();
+    }
+
     function renderContacts() {
       const activeList = getActiveDataset();
       const query = searchInput.value.toLowerCase().trim();
+
+      // Check if user is in initial empty state
+      if (currentCategory === 'NONE' && !query && !onlyFavorites && minRatingFilter === 0) {
+        visibleCount.innerText = 0;
+        activeCategoryLabel.innerText = 'Selecione uma categoria ou pesquise acima';
+        grid.innerHTML = \`
+          <div class="col-12 text-center py-4">
+            <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white">
+              <div class="mb-3">
+                <i class="bi bi-search text-primary display-4"></i>
+              </div>
+              <h4 class="fw-bold text-dark mb-2">Qual serviço você procura hoje?</h4>
+              <p class="text-muted mb-4 mx-auto" style="max-width: 550px;">
+                Selecione uma categoria no menu acima ou digite na barra de busca (ex: <i>eletricista, pedreiro, dentista, marmita, ar condicionado</i>).
+              </p>
+              <div class="d-flex justify-content-center flex-wrap gap-2 mb-3">
+                <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Climatização & Refrigeração')">❄️ Climatização & Refrigeração</button>
+                <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Construção & Reformas')">🛠️ Construção & Reformas</button>
+                <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Saúde & Médicos')">🩺 Saúde & Médicos</button>
+                <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Gastronomia, Alimentos & Festas')">🍕 Gastronomia & Festas</button>
+                <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Serviços Domésticos & Manutenção')">🧹 Serviços Domésticos</button>
+              </div>
+              <div>
+                <button class="btn btn-sm btn-link text-muted text-decoration-none" onclick="showAllContacts()">
+                  <i class="bi bi-grid-3x3-gap me-1"></i> Ver todos os \${activeList.length} contatos cadastrados
+                </button>
+              </div>
+            </div>
+          </div>
+        \`;
+        updateStats(activeList);
+        return;
+      }
+
       grid.innerHTML = '';
       let count = 0;
 
@@ -624,7 +874,7 @@ const htmlContent = `<!DOCTYPE html>
         const userRating = ratings[c.filename] !== undefined ? ratings[c.filename] : (c.rating || 0);
 
         // Filter by category
-        if (currentCategory !== 'ALL' && c.category !== currentCategory) {
+        if (currentCategory !== 'ALL' && currentCategory !== 'NONE' && c.category !== currentCategory) {
           continue;
         }
 
@@ -689,7 +939,7 @@ const htmlContent = `<!DOCTYPE html>
             <button class="action-btn" onclick="openEditModal('\${escapeHtml(c.filename)}')" title="Editar Contato">
               <i class="bi bi-pencil-square"></i>
             </button>
-            <button class="action-btn action-btn-danger" onclick="deleteContact('\${escapeHtml(c.filename)}', '\${escapeHtml(c.name)}')" title="Excluir Contato">
+            <button class="action-btn action-btn-danger" onclick="deleteContact('\${escapeHtml(c.filename)}', '\${escapeHtml(c.name)}')" title="Excluir Contato Permanentemente">
               <i class="bi bi-trash"></i>
             </button>
           \`;
@@ -739,6 +989,16 @@ const htmlContent = `<!DOCTYPE html>
         grid.appendChild(col);
       }
 
+      if (count === 0) {
+        grid.innerHTML = \`
+          <div class="col-12 text-center py-5 text-muted">
+            <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
+            <h5>Nenhum contato encontrado para a pesquisa/filtro.</h5>
+            <p>Tente buscar por termos mais genéricos ou selecionar outra categoria.</p>
+          </div>
+        \`;
+      }
+
       visibleCount.innerText = count;
       updateStats(activeList);
     }
@@ -755,6 +1015,11 @@ const htmlContent = `<!DOCTYPE html>
         ratings[filename] = score;
       }
       localStorage.setItem('ratings_contacts', JSON.stringify(ratings));
+
+      // Sincronizar nota no Supabase
+      if (supabaseClient) {
+        supabaseClient.from('contatos').update({ rating: score }).eq('filename', filename);
+      }
       renderContacts();
     }
 
@@ -769,6 +1034,216 @@ const htmlContent = `<!DOCTYPE html>
       }
       localStorage.setItem('fav_contacts', JSON.stringify(favorites));
       if (onlyFavorites) renderContacts();
+    }
+
+    // VCF Browser Importer Logic
+    function triggerVcfUpload() {
+      if (!isAdmin) return;
+      document.getElementById('vcf-file-input').click();
+    }
+
+    function handleVCFFileSelect(event) {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+
+      let processedCount = 0;
+      let newContactsAdded = 0;
+      const activeList = getActiveDataset();
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+          const text = e.target.result;
+          const parsedList = parseVCFBrowser(text, file.name);
+          
+          for (let newC of parsedList) {
+            if (deletedIds.includes(newC.filename)) continue;
+
+            const cleanPhone = newC.phone_primary ? newC.phone_primary.replace(/\\D/g, '') : '';
+            const cleanName = newC.name.toLowerCase().trim();
+
+            const existing = activeList.find(c => {
+              const cp = c.phone_primary ? c.phone_primary.replace(/\\D/g, '') : '';
+              if (cleanPhone && cleanPhone.length >= 8 && cp === cleanPhone) return true;
+              if (c.name.toLowerCase().trim() === cleanName) return true;
+              return false;
+            });
+
+            if (!existing) {
+              addedContacts.push(newC);
+              activeList.push(newC);
+              newContactsAdded++;
+
+              // Enviar direto para o Supabase
+              if (supabaseClient) {
+                await supabaseClient.from('contatos').upsert([{
+                  filename: newC.filename,
+                  name: newC.name,
+                  org: newC.org || '',
+                  category: newC.category || 'Outros / Gerais',
+                  phone_primary: newC.phone_primary || '',
+                  instagram: newC.instagram || '',
+                  wa_link: newC.wa_link || '',
+                  email: newC.email || '',
+                  wa_description: newC.wa_description || '',
+                  rating: 0
+                }]);
+              }
+            }
+          }
+
+          processedCount++;
+          if (processedCount === files.length) {
+            localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
+            showAllContacts();
+            alert('✅ Importação concluída! ' + newContactsAdded + ' novo(s) contato(s) adicionado(s) com sucesso ao catálogo.');
+            document.getElementById('vcf-file-input').value = '';
+          }
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    const categoryRulesJS = [
+      { name: 'Climatização & Refrigeração', keywords: ['ar condicionado', 'refrigera', 'geladeira', 'split', 'clima', 'freezer', 'boiller', 'aquecedor'] },
+      { name: 'Elétrica & Eletrônica', keywords: ['eletric', 'eletrec', 'eletronica', 'eletrônica', 'tomada', 'câmera', 'camera', 'tv', 'luz', 'iluminação'] },
+      { name: 'Construção & Reformas', keywords: ['pedreiro', 'marceneiro', 'marcenaria', 'pintor', 'gesso', 'vidraceiro', 'vidro', 'serralhe', 'esquadria', 'obra', 'reforma', 'granito', 'mármore', 'marmore', 'piso', 'arquitet', 'engenhar'] },
+      { name: 'Serviços Domésticos & Manutenção', keywords: ['diaria', 'diarista', 'faxina', 'passadeira', 'limpeza', 'sofá', 'sofa', 'dedetiza', 'detetiza', 'bombeiro', 'encanador', 'chaveiro', 'desentupidora', 'cuidador', 'babá', 'baba', 'reparos', 'conserto'] },
+      { name: 'Saúde & Médicos', keywords: ['dentista', 'médic', 'medic', 'doutor', 'dra.', 'dr.', 'dra ', 'dr ', 'clínica', 'clinica', 'odontolog', 'fisioterap', 'fono', 'psicól', 'psicol', 'geriatra', 'pneumo', 'dermato', 'endocrino', 'pediatra', 'podólog', 'podolog', 'ortoped', 'hospital', 'farmácia', 'farmacia', 'nutri', 'terapeuta'] },
+      { name: 'Gastronomia, Alimentos & Festas', keywords: ['buffet', 'bolo', 'doce', 'confeit', 'salgado', 'cerveja', 'bar', 'restaurante', 'pizzar', 'coxinha', 'empada', 'café', 'cafe', 'lanch', 'churrasc', 'garçom', 'festa', 'balão', 'balao', 'marmita', 'comida', 'peixaria', 'açougu', 'acougu', 'frutas', 'ovos', 'queijo', 'bebida', 'rotisseria', 'padaria', 'cerimonial'] },
+      { name: 'Fretes, Mudanças & Veículos', keywords: ['frete', 'mudança', 'mudanca', 'uber', 'motorista', 'borrachar', 'mecânic', 'mecanic', 'carro', 'auto', 'insulfilm', 'bateria', 'pneu', 'oficina', 'veículo', 'veiculo', 'transporte', 'reboque'] },
+      { name: 'Pet & Veterinária', keywords: ['pet', 'veterinár', 'veterinar', 'vet', 'canil', 'tosa', 'banho', 'cachorro', 'gato', 'ração', 'racao', 'animal'] },
+      { name: 'Beleza & Cuidados Pessoais', keywords: ['salão', 'salao', 'manicure', 'sobrancelha', 'cabelo', 'maquiad', 'barbearia', 'barbeiro', 'unha', 'estétic', 'estetic', 'depila', 'massag', 'podologia'] },
+      { name: 'Tecnologia & Informática', keywords: ['informática', 'informatica', 'computador', 'notebook', 'manutenção', 'suporte', 'tecnologia', 'cartucho', 'impressora', 'internet', 'site', 'software'] },
+      { name: 'Costura, Estofados & Decoração', keywords: ['costura', 'costureira', 'roupa', 'bordado', 'ateliê', 'atelie', 'uniforme', 'cortina', 'persiana', 'estofad', 'papel de parede', 'decora', 'moldura', 'toldo'] }
+    ];
+
+    function getCategoryJS(text) {
+      const lower = text.replace(/X-ABLabel:Celular/gi, '').replace(/TYPE=CELL/gi, '').toLowerCase();
+      for (const rule of categoryRulesJS) {
+        if (rule.keywords.some(kw => lower.includes(kw))) {
+          return rule.name;
+        }
+      }
+      return 'Outros / Gerais';
+    }
+
+    function extractInstagramJS(text) {
+      if (!text) return '';
+      const regex = /@([a-zA-Z0-9_\\.]+)/g;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        let handle = match[1];
+        handle = handle.replace(/\\.vcf$/i, '').replace(/\\.$/, '');
+        const lower = handle.toLowerCase();
+        if (['gmail.com', 'hotmail.com', 'yahoo.com', 'outlook.com', 'icloud.com', 'bol.com.br', 'vcf'].includes(lower)) continue;
+        if (handle.length >= 3) return '@' + handle;
+      }
+      return '';
+    }
+
+    function parseVCFBrowser(vcfText, filename) {
+      const unfolded = vcfText.replace(/\\r?\\n[ \\t]/g, '');
+      const vcards = unfolded.split(/END:VCARD/i).filter(v => v.includes('BEGIN:VCARD'));
+      const parsedContacts = [];
+
+      for (const vcard of vcards) {
+        const lines = vcard.split(/\\r?\\n/);
+        let fn = '';
+        let org = '';
+        let title = '';
+        let phones = [];
+        let emails = [];
+        let waDesc = '';
+        let waName = '';
+        let note = '';
+
+        for (let line of lines) {
+          line = line.trim();
+          if (!line) continue;
+          const colonIdx = line.indexOf(':');
+          if (colonIdx === -1) continue;
+
+          const rawKey = line.substring(0, colonIdx);
+          let val = line.substring(colonIdx + 1);
+
+          const keyUpper = rawKey.toUpperCase();
+          if (keyUpper.startsWith('FN')) {
+            fn = val;
+          } else if (keyUpper.startsWith('N;') || keyUpper === 'N') {
+            if (!fn) {
+              const parts = val.split(';').filter(Boolean);
+              fn = parts.reverse().join(' ');
+            }
+          } else if (keyUpper.startsWith('ORG')) {
+            org = val.replace(/;/g, ' ').trim();
+          } else if (keyUpper.startsWith('TITLE')) {
+            title = val;
+          } else if (keyUpper.includes('TEL')) {
+            if (val) phones.push(val);
+          } else if (keyUpper.includes('EMAIL')) {
+            if (val) emails.push(val);
+          } else if (keyUpper.includes('X-WA-BIZ-DESCRIPTION')) {
+            waDesc = val;
+          } else if (keyUpper.includes('X-WA-BIZ-NAME')) {
+            waName = val;
+          } else if (keyUpper.startsWith('NOTE')) {
+            note = val;
+          }
+        }
+
+        if (!fn || fn.trim() === '') {
+          fn = (filename || 'contato').replace(/\\.vcf$/i, '');
+        }
+
+        const cleanPhones = [];
+        const waLinks = [];
+        for (let p of phones) {
+          let digits = p.replace(/\\D/g, '');
+          if (!digits) continue;
+          let waDigits = digits;
+          if (digits.length === 10 || digits.length === 11) waDigits = '55' + digits;
+          let formatted = p;
+          if (digits.length === 11 && digits.startsWith('55')) {
+            const ddd = digits.substring(2, 4);
+            const num = digits.substring(4);
+            formatted = \`(\${ddd}) \${num.substring(0, 5)}-\${num.substring(5)}\`;
+          } else if (digits.length === 13 && digits.startsWith('55')) {
+            const ddd = digits.substring(2, 4);
+            const num = digits.substring(4);
+            formatted = \`+55 (\${ddd}) \${num.substring(0, 5)}-\${num.substring(5)}\`;
+          } else if (digits.length === 11) {
+            const ddd = digits.substring(0, 2);
+            const num = digits.substring(2);
+            formatted = \`(\${ddd}) \${num.substring(0, 5)}-\${num.substring(5)}\`;
+          }
+          cleanPhones.push(formatted);
+          waLinks.push(\`https://wa.me/\${waDigits}\`);
+        }
+
+        const fullText = (filename || '') + ' ' + fn + ' ' + org + ' ' + waDesc + ' ' + note;
+        const instagram = extractInstagramJS(fullText);
+        const category = getCategoryJS(fullText);
+
+        parsedContacts.push({
+          filename: (filename || ('import_' + Date.now())).replace(/\\.vcf$/i, '') + '_' + Math.random().toString(36).substring(2, 7) + '.vcf',
+          name: fn.trim(),
+          org: (org || waName || '').trim(),
+          title: title.trim(),
+          category: category,
+          phones: cleanPhones,
+          phone_primary: cleanPhones[0] || '',
+          wa_link: waLinks[0] || '',
+          email: emails[0] || '',
+          wa_description: waDesc.trim(),
+          note: note.trim(),
+          instagram: instagram,
+          rating: 0
+        });
+      }
+
+      return parsedContacts;
     }
 
     // Modal Actions: Add / Edit (Admin Only)
@@ -800,7 +1275,7 @@ const htmlContent = `<!DOCTYPE html>
       contactModal.show();
     }
 
-    function saveContact() {
+    async function saveContact() {
       if (!isAdmin) return;
       const id = document.getElementById('edit-id').value;
       const name = document.getElementById('edit-name').value.trim();
@@ -826,45 +1301,32 @@ const htmlContent = `<!DOCTYPE html>
         waLink = 'https://wa.me/' + digits;
       }
 
+      const updatedObj = {
+        name,
+        org,
+        category,
+        instagram: insta,
+        phone_primary: phone,
+        phones: phone ? [phone] : [],
+        wa_link: waLink,
+        email,
+        wa_description: desc,
+        rating: ratingVal
+      };
+
       if (id) {
-        customEdits[id] = {
-          name,
-          org,
-          category,
-          instagram: insta,
-          phone_primary: phone,
-          phones: phone ? [phone] : [],
-          wa_link: waLink,
-          email,
-          wa_description: desc,
-          rating: ratingVal
-        };
+        customEdits[id] = updatedObj;
         localStorage.setItem('contacts_edits', JSON.stringify(customEdits));
-        if (ratingVal > 0) {
-          ratings[id] = ratingVal;
-          localStorage.setItem('ratings_contacts', JSON.stringify(ratings));
+        if (supabaseClient) {
+          await supabaseClient.from('contatos').upsert([{ filename: id, ...updatedObj }]);
         }
       } else {
         const newFilename = 'novo_' + Date.now() + '.vcf';
-        const newObj = {
-          filename: newFilename,
-          name,
-          org,
-          category,
-          instagram: insta,
-          phone_primary: phone,
-          phones: phone ? [phone] : [],
-          wa_link: waLink,
-          email,
-          wa_description: desc,
-          note: '',
-          rating: ratingVal
-        };
+        const newObj = { filename: newFilename, ...updatedObj, note: '' };
         addedContacts.push(newObj);
         localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
-        if (ratingVal > 0) {
-          ratings[newFilename] = ratingVal;
-          localStorage.setItem('ratings_contacts', JSON.stringify(ratings));
+        if (supabaseClient) {
+          await supabaseClient.from('contatos').upsert([newObj]);
         }
       }
 
@@ -872,24 +1334,31 @@ const htmlContent = `<!DOCTYPE html>
       renderContacts();
     }
 
-    function deleteContact(filename, name) {
+    async function deleteContact(filename, name) {
       if (!isAdmin) return;
-      if (confirm('Tem certeza que deseja excluir "' + name + '" do catálogo?')) {
-        deletedIds.push(filename);
+      if (confirm('Tem certeza que deseja EXCLUIR PERMANENTEMENTE o contato "' + name + '"?\\n\\nEle será adicionado à lista negra e excluído do banco de dados.')) {
+        if (!deletedIds.includes(filename)) {
+          deletedIds.push(filename);
+        }
         localStorage.setItem('contacts_deleted', JSON.stringify(deletedIds));
+        if (supabaseClient) {
+          await supabaseClient.from('contatos').delete().eq('filename', filename);
+        }
         renderContacts();
       }
     }
 
     function resetChanges() {
       if (!isAdmin) return;
-      if (confirm('Deseja descartar todas as edições, adições e exclusões e retornar ao catálogo original?')) {
+      if (confirm('Deseja descartar as alterações locais e retornar aos dados originais?')) {
         localStorage.removeItem('contacts_edits');
         localStorage.removeItem('contacts_deleted');
         localStorage.removeItem('contacts_added');
         customEdits = {};
         deletedIds = [];
         addedContacts = [];
+        currentCategory = 'NONE';
+        categorySelect.value = 'NONE';
         renderContacts();
       }
     }
@@ -927,6 +1396,11 @@ const htmlContent = `<!DOCTYPE html>
       downloadFile(JSON.stringify(list, null, 2), 'catalogo_contatos_atualizado.json', 'application/json');
     }
 
+    function exportBlacklist(e) {
+      e.preventDefault();
+      downloadFile(JSON.stringify(deletedIds, null, 2), 'contatos_excluidos.json', 'application/json');
+    }
+
     function downloadFile(content, filename, contentType) {
       const blob = new Blob([content], { type: contentType });
       const url = URL.createObjectURL(blob);
@@ -939,31 +1413,31 @@ const htmlContent = `<!DOCTYPE html>
       URL.revokeObjectURL(url);
     }
 
-    // Category click handler
-    document.getElementById('categories-container').addEventListener('click', (e) => {
-      const badge = e.target.closest('.category-badge');
-      if (!badge) return;
-
-      document.querySelectorAll('.category-badge').forEach(b => {
-        b.classList.remove('active', 'bg-primary');
-        b.classList.add('bg-light', 'text-dark', 'border');
-      });
-
-      badge.classList.remove('bg-light', 'text-dark', 'border');
-      badge.classList.add('active', 'bg-primary');
-
-      currentCategory = badge.dataset.category;
-      activeCategoryLabel.innerText = 'Categoria: ' + (currentCategory === 'ALL' ? 'Todas' : currentCategory);
+    // Category select handler
+    categorySelect.addEventListener('change', (e) => {
+      const val = e.target.value;
+      currentCategory = val;
+      activeCategoryLabel.innerText = 'Categoria: ' + (val === 'ALL' ? 'Todas' : (val === 'NONE' ? 'Nenhuma' : val));
       renderContacts();
     });
 
     // Search input handler
-    searchInput.addEventListener('input', renderContacts);
+    searchInput.addEventListener('input', () => {
+      if (currentCategory === 'NONE' && searchInput.value.trim().length > 0) {
+        currentCategory = 'ALL';
+        categorySelect.value = 'ALL';
+      }
+      renderContacts();
+    });
 
     // Rating select handler
     minRatingSelect.addEventListener('change', (e) => {
       const val = e.target.value;
       minRatingFilter = (val === 'unrated' || val === 'insta') ? val : parseInt(val, 10);
+      if (minRatingFilter !== 0 && currentCategory === 'NONE') {
+        currentCategory = 'ALL';
+        categorySelect.value = 'ALL';
+      }
       renderContacts();
     });
 
@@ -973,6 +1447,10 @@ const htmlContent = `<!DOCTYPE html>
       if (onlyFavorites) {
         toggleFavsBtn.classList.remove('btn-outline-warning');
         toggleFavsBtn.classList.add('btn-warning');
+        if (currentCategory === 'NONE') {
+          currentCategory = 'ALL';
+          categorySelect.value = 'ALL';
+        }
       } else {
         toggleFavsBtn.classList.remove('btn-warning');
         toggleFavsBtn.classList.add('btn-outline-warning');
@@ -988,4 +1466,5 @@ const htmlContent = `<!DOCTYPE html>
 </html>`;
 
 fs.writeFileSync(path.join(dir, 'catalogo_servicos.html'), htmlContent, 'utf8');
-console.log('Catálogo HTML com layout de logo/avatar corrigido em catalogo_servicos.html');
+fs.writeFileSync(path.join(dir, 'index.html'), htmlContent, 'utf8');
+console.log('build_html.js atualizado com integração Supabase Realtime completa!');
