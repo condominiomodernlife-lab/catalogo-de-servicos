@@ -43,15 +43,15 @@ const htmlContent = `<!DOCTYPE html>
   <meta http-equiv="Expires" content="0">
   
   <!-- Security & Reputation Meta Tags -->
-  <meta name="description" content="Catálogo Inteligente de Serviços e Fornecedores Condominiais com Banco de Dados em Tempo Real.">
-  <meta name="author" content="Condomínio Modern Life">
+  <meta name="description" content="Serviços BF - Guia Inteligente de Serviços e Fornecedores com Banco de Dados em Tempo Real.">
+  <meta name="author" content="Serviços BF">
   <meta name="robots" content="index, follow">
   
   <!-- Open Graph Meta Tags -->
-  <meta property="og:title" content="Catálogo de Serviços - Guia de Fornecedores">
+  <meta property="og:title" content="Serviços BF - Guia de Fornecedores">
   <meta property="og:description" content="Guia de fornecedores e prestadores de serviços recomendados com sincronização em tempo real.">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Catálogo de Serviços">
+  <meta property="og:site_name" content="Serviços BF">
 
   <!-- PWA & Mobile Install Meta Tags -->
   <link rel="manifest" href="/manifest.json">
@@ -59,12 +59,12 @@ const htmlContent = `<!DOCTYPE html>
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Catálogo">
+  <meta name="apple-mobile-web-app-title" content="Serviços BF">
   <link rel="apple-touch-icon" href="/icon-192.svg">
   <link rel="icon" type="image/svg+xml" href="/icon-192.svg">
   <link rel="shortcut icon" href="/icon-192.svg">
 
-  <title>Catálogo de Serviços - Guia de Fornecedores</title>
+  <title>Serviços BF - Guia de Fornecedores</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   
@@ -286,7 +286,7 @@ const htmlContent = `<!DOCTYPE html>
     <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
         <i class="bi bi-shield-lock-fill me-2"></i>
-        <strong>Modo Administrador Ativo</strong> — Banco de dados em nuvem ativado em tempo real.
+        <strong>Modo Administrador Ativo (Serviços BF)</strong> — Banco de dados em nuvem ativado.
       </div>
       <div class="d-flex align-items-center gap-2">
         <button class="btn btn-sm btn-outline-primary text-dark" onclick="syncAllToSupabase()">
@@ -308,12 +308,12 @@ const htmlContent = `<!DOCTYPE html>
       <div class="row align-items-center">
         <div class="col-md-7">
           <div class="d-flex align-items-center gap-2 mb-2">
-            <h1 class="fw-bold mb-0"><i class="bi bi-journal-bookmark-fill me-2"></i>Catálogo de Serviços</h1>
+            <h1 class="fw-bold mb-0"><i class="bi bi-journal-bookmark-fill me-2"></i>Serviços BF</h1>
             <span id="db-status" class="badge bg-success-subtle text-success border border-success-subtle db-status-badge">
               <i class="bi bi-wifi me-1"></i> Supabase Realtime On
             </span>
           </div>
-          <p class="mb-0 text-white-50">Encontre prestadores recomendados com sincronização em tempo real.</p>
+          <p class="mb-0 text-white-50">Encontre prestadores de serviços recomendados perto de você.</p>
         </div>
         <div class="col-md-5 mt-3 mt-md-0">
           <div class="row g-2">
@@ -440,7 +440,7 @@ const htmlContent = `<!DOCTYPE html>
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header border-bottom-0 pb-0">
-          <h5 class="modal-title fw-bold"><i class="bi bi-phone me-2 text-primary"></i>Instalar Aplicativo no Celular</h5>
+          <h5 class="modal-title fw-bold"><i class="bi bi-phone me-2 text-primary"></i>Instalar Serviços BF</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
@@ -448,7 +448,7 @@ const htmlContent = `<!DOCTYPE html>
             <div class="bg-primary-subtle text-primary d-inline-flex p-3 rounded-circle mb-2">
               <i class="bi bi-phone-vibrate display-5"></i>
             </div>
-            <h6 class="fw-bold">Adicione o Catálogo à sua Tela Inicial</h6>
+            <h6 class="fw-bold">Adicione o Serviços BF à sua Tela Inicial</h6>
             <p class="text-muted small mb-0">Acesse o guia de fornecedores como um aplicativo nativo no celular, sem precisar digitar o site!</p>
           </div>
 
@@ -644,7 +644,7 @@ const htmlContent = `<!DOCTYPE html>
         .subscribe();
     }
 
-    // Sincronizar todos os 2.428 contatos no Supabase (Botão no Admin Bar)
+    // Sincronizar todos os contatos no Supabase (Botão no Admin Bar)
     async function syncAllToSupabase() {
       if (!isAdmin) return;
       if (!supabaseClient) {
@@ -730,7 +730,6 @@ const htmlContent = `<!DOCTYPE html>
     }
 
     function getActiveDataset() {
-      // Se tiver dados carregados do Supabase, usa o Supabase
       const baseList = supabaseContacts || INITIAL_CONTACTS;
       let list = [];
 
@@ -1467,4 +1466,4 @@ const htmlContent = `<!DOCTYPE html>
 
 fs.writeFileSync(path.join(dir, 'catalogo_servicos.html'), htmlContent, 'utf8');
 fs.writeFileSync(path.join(dir, 'index.html'), htmlContent, 'utf8');
-console.log('build_html.js atualizado com integração Supabase Realtime completa!');
+console.log('build_html.js atualizado com o nome Serviços BF!');
