@@ -241,7 +241,7 @@
       display: none !important;
     }
     body.is-admin .admin-only {
-      display: inline-block !important;
+      display: block !important;
     }
     .admin-bar {
       background: #fff3cd;
@@ -387,42 +387,73 @@
             </select>
           </div>
 
-          <!-- Action Buttons -->
+          <!-- Action Buttons / Options Menu Dropdown -->
           <div class="col-lg-4 col-md-12 text-lg-end text-center">
-            <!-- Indicar Prestador Button -->
-            <button class="btn btn-outline-success rounded-pill me-1 fw-semibold" onclick="openSuggestModal()">
+            <!-- Indicar Prestador Quick Button -->
+            <button class="btn btn-outline-success rounded-pill me-2 fw-semibold" onclick="openSuggestModal()">
               <i class="bi bi-plus-circle me-1"></i> Indicar Prestador
             </button>
 
-            <!-- PWA Install Button -->
-            <button id="pwa-install-btn" class="btn btn-warning rounded-pill me-1 text-dark fw-semibold" onclick="promptInstallPWA()">
-              <i class="bi bi-phone-vibrate me-1"></i> Instalar App
-            </button>
-
-            <button id="admin-login-btn" class="btn btn-outline-secondary rounded-pill me-1" onclick="promptAdminLogin()">
-              <i class="bi bi-lock me-1"></i> Admin
-            </button>
-
-            <button class="btn btn-success rounded-pill me-1 admin-only" onclick="triggerVcfUpload()">
-              <i class="bi bi-file-earmark-arrow-up me-1"></i> VCF
-            </button>
-            <input type="file" id="vcf-file-input" accept=".vcf" multiple style="display:none;" onchange="handleVCFFileSelect(event)">
-
-            <button class="btn btn-primary rounded-pill me-1 admin-only" onclick="openAddModal()">
-              <i class="bi bi-plus-lg me-1"></i> Novo
-            </button>
-            <div class="btn-group admin-only">
-              <button class="btn btn-outline-success rounded-pill dropdown-toggle" data-bs-toggle="dropdown">
-                <i class="bi bi-download"></i>
+            <!-- Menu de Opções Dropdown (Instalar App & Aba Admin) -->
+            <div class="dropdown d-inline-block">
+              <button class="btn btn-primary rounded-pill dropdown-toggle fw-semibold px-3" type="button" id="optionsMenuBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-list me-1"></i> Menu
               </button>
-              <ul class="dropdown-menu dropdown-menu-end shadow">
-                <li><a class="dropdown-item" href="#" onclick="exportCSV(event)"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Exportar CSV</a></li>
-                <li><a class="dropdown-item" href="#" onclick="exportJSON(event)"><i class="bi bi-filetype-json me-2 text-primary"></i>Exportar JSON</a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item text-danger" href="#" onclick="exportBlacklist(event)"><i class="bi bi-shield-x me-2"></i>Baixar contatos_excluidos.json</a></li>
+              <ul class="dropdown-menu dropdown-menu-end rounded-4 shadow border-0 p-2 mt-2" aria-labelledby="optionsMenuBtn" style="min-width: 240px; z-index: 1050;">
+                <!-- Opção 1: Instalar App (PWA) -->
+                <li>
+                  <button class="dropdown-item rounded-3 py-2 fw-semibold text-dark" onclick="promptInstallPWA()">
+                    <i class="bi bi-phone-vibrate text-warning me-2 fs-5"></i> 📱 Instalar App
+                  </button>
+                </li>
+                
+                <!-- Opção 2: Aba Admin -->
+                <li>
+                  <button id="admin-menu-btn" class="dropdown-item rounded-3 py-2 fw-semibold text-dark" onclick="handleAdminMenuClick()">
+                    <i class="bi bi-shield-lock text-primary me-2 fs-5"></i> <span id="admin-menu-text">🔒 Área Admin</span>
+                  </button>
+                </li>
+
+                <li><hr class="dropdown-divider my-1"></li>
+
+                <!-- Opção 3: Indicar Prestador -->
+                <li>
+                  <button class="dropdown-item rounded-3 py-2 text-success fw-semibold" onclick="openSuggestModal()">
+                    <i class="bi bi-plus-circle me-2 fs-5"></i> ➕ Indicar Prestador
+                  </button>
+                </li>
+
+                <!-- Opção 4: Favoritos -->
+                <li>
+                  <button class="dropdown-item rounded-3 py-2 text-warning fw-semibold" onclick="toggleFavsFromMenu()">
+                    <i class="bi bi-star-fill me-2 fs-5"></i> ⭐ Meus Favoritos
+                  </button>
+                </li>
+
+                <!-- Opções de Administrador (Modo Admin) -->
+                <li class="admin-only"><hr class="dropdown-divider my-1"></li>
+                <li class="admin-only">
+                  <button class="dropdown-item rounded-3 py-2 text-dark fw-semibold" onclick="openPendingApprovalsModal()">
+                    <i class="bi bi-hourglass-split me-2 text-warning fs-5"></i> Fila de Aprovação (<span id="pending-badge-count-menu">0</span>)
+                  </button>
+                </li>
+                <li class="admin-only">
+                  <button class="dropdown-item rounded-3 py-2 text-primary fw-semibold" onclick="openAddModal()">
+                    <i class="bi bi-person-plus-fill me-2 fs-5"></i> Novo Prestador (Admin)
+                  </button>
+                </li>
+                <li class="admin-only">
+                  <button class="dropdown-item rounded-3 py-2 text-success fw-semibold" onclick="triggerVcfUpload()">
+                    <i class="bi bi-file-earmark-arrow-up-fill me-2 fs-5"></i> Importar VCF
+                  </button>
+                </li>
               </ul>
             </div>
-            <button id="toggle-favs-btn" class="btn btn-outline-warning rounded-pill ms-1" title="Ver Favoritos">
+
+            <!-- VCF File Input -->
+            <input type="file" id="vcf-file-input" accept=".vcf" multiple style="display:none;" onchange="handleVCFFileSelect(event)">
+            
+            <button id="toggle-favs-btn" class="btn btn-outline-warning rounded-pill ms-1 d-none" title="Ver Favoritos">
               <i class="bi bi-star-fill"></i>
             </button>
           </div>
@@ -745,10 +776,11 @@ A indicação do prestador "' + name + '" foi enviada com sucesso e está AGUARD
     function updatePendingBadge() {
       const activeList = getActiveDatasetAll();
       const pendingItems = activeList.filter(c => c.status === 'PENDENTE' || (c.wa_description && c.wa_description.startsWith('[PENDENTE')));
-      const badge = document.getElementById('pending-badge-count');
-      if (badge) {
-        badge.innerText = pendingItems.length;
-      }
+      
+      const badgeBar = document.getElementById('pending-badge-count');
+      const badgeMenu = document.getElementById('pending-badge-count-menu');
+      if (badgeBar) badgeBar.innerText = pendingItems.length;
+      if (badgeMenu) badgeMenu.innerText = pendingItems.length;
     }
 
     function openPendingApprovalsModal() {
@@ -879,6 +911,27 @@ A indicação do prestador "' + name + '" foi enviada com sucesso e está AGUARD
       }
     }
 
+    function toggleFavsFromMenu() {
+      onlyFavorites = !onlyFavorites;
+      if (onlyFavorites) {
+        alert('⭐ Exibindo apenas seus contatos Favoritos.');
+        categorySelect.value = 'ALL';
+        currentCategory = 'ALL';
+      } else {
+        categorySelect.value = 'NONE';
+        currentCategory = 'NONE';
+      }
+      renderContacts();
+    }
+
+    function handleAdminMenuClick() {
+      if (isAdmin) {
+        logoutAdmin();
+      } else {
+        promptAdminLogin();
+      }
+    }
+
     // Admin state
     const DEFAULT_PASS = 'admin123';
     let isAdmin = sessionStorage.getItem('is_admin') === 'true';
@@ -904,7 +957,6 @@ A indicação do prestador "' + name + '" foi enviada com sucesso e está AGUARD
     const statTotal = document.getElementById('stat-total');
     const statInsta = document.getElementById('stat-insta');
     const resetEditsBtn = document.getElementById('reset-edits-btn');
-    const adminLoginBtn = document.getElementById('admin-login-btn');
 
     const contactModal = new bootstrap.Modal(document.getElementById('contactModal'));
 
@@ -971,13 +1023,14 @@ A indicação do prestador "' + name + '" foi enviada com sucesso e está AGUARD
     }
 
     function applyAdminState() {
+      const adminText = document.getElementById('admin-menu-text');
       if (isAdmin) {
         document.body.classList.add('is-admin');
-        adminLoginBtn.style.display = 'none';
+        if (adminText) adminText.innerHTML = '🔓 Sair do Modo Admin';
         updatePendingBadge();
       } else {
         document.body.classList.remove('is-admin');
-        adminLoginBtn.style.display = 'inline-block';
+        if (adminText) adminText.innerHTML = '🔒 Área Admin';
       }
     }
 
@@ -1346,10 +1399,10 @@ A indicação do prestador "' + name + '" foi enviada com sucesso e está AGUARD
       const idx = favorites.indexOf(filename);
       if (idx > -1) {
         favorites.splice(idx, 1);
-        el.classList.remove('active');
+        if (el) el.classList.remove('active');
       } else {
         favorites.push(filename);
-        el.classList.add('active');
+        if (el) el.classList.add('active');
       }
       localStorage.setItem('fav_contacts', JSON.stringify(favorites));
       if (onlyFavorites) renderContacts();
@@ -1793,19 +1846,6 @@ A indicação do prestador "' + name + '" foi enviada com sucesso e está AGUARD
     minRatingSelect.addEventListener('change', (e) => {
       const val = e.target.value;
       minRatingFilter = (val === 'unrated' || val === 'insta') ? val : parseInt(val, 10);
-      renderContacts();
-    });
-
-    // Favorites toggle handler
-    toggleFavsBtn.addEventListener('click', () => {
-      onlyFavorites = !onlyFavorites;
-      if (onlyFavorites) {
-        toggleFavsBtn.classList.remove('btn-outline-warning');
-        toggleFavsBtn.classList.add('btn-warning');
-      } else {
-        toggleFavsBtn.classList.remove('btn-warning');
-        toggleFavsBtn.classList.add('btn-outline-warning');
-      }
       renderContacts();
     });
 
