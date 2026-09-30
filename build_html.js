@@ -155,6 +155,23 @@ const htmlContent = `<!DOCTYPE html>
       opacity: 0.92;
       color: white;
     }
+    .btn-share {
+      background: #eef2ff;
+      color: #4f46e5;
+      font-weight: 600;
+      border-radius: 50px;
+      padding: 0.4rem 0.8rem;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+    .btn-share:hover {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
     .avatar-wrapper {
       position: relative;
       width: 48px;
@@ -379,8 +396,13 @@ const htmlContent = `<!DOCTYPE html>
             </select>
           </div>
 
-          <!-- Admin & Action Buttons -->
+          <!-- Action Buttons -->
           <div class="col-lg-4 col-md-12 text-lg-end text-center">
+            <!-- Indicar Prestador Button -->
+            <button class="btn btn-outline-success rounded-pill me-1 fw-semibold" onclick="openSuggestModal()">
+              <i class="bi bi-plus-circle me-1"></i> Indicar Prestador
+            </button>
+
             <!-- PWA Install Button -->
             <button id="pwa-install-btn" class="btn btn-warning rounded-pill me-1 text-dark fw-semibold" onclick="promptInstallPWA()">
               <i class="bi bi-phone-vibrate me-1"></i> Instalar App
@@ -431,6 +453,51 @@ const htmlContent = `<!DOCTYPE html>
     <!-- Contacts Grid -->
     <div class="row g-3" id="contacts-grid">
       <!-- Initial Landing / Empty State or Filtered Cards -->
+    </div>
+  </div>
+
+  <!-- Modal Indicar Novo Prestador (Moradores / Público) -->
+  <div class="modal fade" id="suggestModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom-0 pb-0">
+          <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle text-success me-2"></i>Indicar Prestador de Serviço</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Conhece um excelente profissional? Indique-o para o catálogo de Serviços BF!</p>
+          <form id="suggestForm">
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">Nome do Prestador / Profissional *</label>
+              <input type="text" id="sug-name" class="form-control rounded-3" required placeholder="Ex: Marcos Ar Condicionado">
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold small">Categoria *</label>
+                <select id="sug-category" class="form-select rounded-3">
+                  ${sortedCategories.map(([cat]) => `<option value="${cat.replace(/"/g, '&quot;')}">${categoryIcons[cat] || '🏷️'} ${cat}</option>`).join('')}
+                </select>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold small">Telefone / WhatsApp *</label>
+                <input type="text" id="sug-phone" class="form-control rounded-3" required placeholder="Ex: (27) 99999-8888">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">Instagram (@perfil) (opcional)</label>
+              <input type="text" id="sug-insta" class="form-control rounded-3" placeholder="Ex: @marcosrefrizer">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">Por que você o recomenda? (opcional)</label>
+              <textarea id="sug-desc" class="form-control rounded-3" rows="2" placeholder="Ex: Pontual, preço justo e serviço excelente no meu condomínio."></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer border-top-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-success rounded-pill px-4" onclick="submitSuggestedContact()">Enviar Indicação</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -548,6 +615,18 @@ const htmlContent = `<!DOCTYPE html>
   <script>
     const INITIAL_CONTACTS = ${JSON.stringify(contacts)};
     
+    // Dicionário Inteligente de Sinônimos
+    const SYNONYMS = {
+      'encanador': ['bombeiro', 'bombeiro hidráulico', 'vazamento', 'desentupidora', 'infiltração', 'água', 'tubulação'],
+      'geladeira': ['climatização', 'refrigeração', 'maqfrio', 'freezer', 'boiller', 'conserto', 'aquecedor'],
+      'tomada': ['eletricista', 'elétrica', 'disjuntor', 'fiação', 'curto', 'luz', 'iluminação'],
+      'gás': ['tubulação', 'fogão', 'botijão', 'aquecedor', 'endutos', 'gás capixaba'],
+      'marmita': ['gastronomia', 'comida', 'salgado', 'almoço', 'refeição', 'restaurante', 'buffet'],
+      'jardim': ['paisagismo', 'planta', 'grama', 'poda', 'jardineiro'],
+      'pintura': ['pintor', 'fachada', 'massa corrida', 'papel de parede', 'tinta'],
+      'chaveiro': ['fechadura', 'chave', 'portão', 'fechadura eletrônica', 'copia de chave']
+    };
+
     // Configuração Supabase Realtime
     const SUPABASE_URL = 'https://ioakxfrwgykxkgnrzxqz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvYWt4ZnJ3Z3lreGtnbnJ6eHF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTY5NjEsImV4cCI6MjEwMzkzMjk2MX0.pWL-sJa1ueuKCVaP5EfFLvghbeI3YM-PZ5o2fGSC-RM';
@@ -568,6 +647,7 @@ const htmlContent = `<!DOCTYPE html>
     // PWA Install Prompt Event
     let deferredPrompt = null;
     const pwaModal = new bootstrap.Modal(document.getElementById('pwaModal'));
+    const suggestModal = new bootstrap.Modal(document.getElementById('suggestModal'));
 
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -585,6 +665,85 @@ const htmlContent = `<!DOCTYPE html>
         });
       } else {
         pwaModal.show();
+      }
+    }
+
+    function openSuggestModal() {
+      document.getElementById('suggestForm').reset();
+      suggestModal.show();
+    }
+
+    async function submitSuggestedContact() {
+      const name = document.getElementById('sug-name').value.trim();
+      const phone = document.getElementById('sug-phone').value.trim();
+      const category = document.getElementById('sug-category').value;
+      let insta = document.getElementById('sug-insta').value.trim();
+      const desc = document.getElementById('sug-desc').value.trim();
+
+      if (!name || !phone) {
+        alert('Por favor, informe o nome e o telefone do prestador.');
+        return;
+      }
+      if (insta && !insta.startsWith('@')) insta = '@' + insta;
+
+      let digits = phone.replace(/\\D/g, '');
+      let waLink = '';
+      if (digits) {
+        if (digits.length === 10 || digits.length === 11) digits = '55' + digits;
+        waLink = 'https://wa.me/' + digits;
+      }
+
+      const newObj = {
+        filename: 'sug_' + Date.now() + '.vcf',
+        name: name,
+        org: 'Indicação de Morador',
+        category: category,
+        instagram: insta,
+        phone_primary: phone,
+        phones: [phone],
+        wa_link: waLink,
+        email: '',
+        wa_description: desc ? 'Indicação: ' + desc : 'Indicado por morador',
+        rating: 5
+      };
+
+      addedContacts.push(newObj);
+      localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from('contatos').upsert([newObj]);
+          loadSupabaseData();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      suggestModal.hide();
+      categorySelect.value = category;
+      currentCategory = category;
+      renderContacts();
+      alert('🎉 Muito obrigado! O prestador "' + name + '" foi cadastrado e enviado ao sistema com sucesso!');
+    }
+
+    // Compartilhar Contato no WhatsApp / Native API
+    function shareContactCard(name, category, phone, rating, insta) {
+      const shareText = '📌 *Indicação de Serviço - Serviços BF*\\n\\n' +
+        '👤 *' + name + '*\\n' +
+        '🏷️ *Categoria:* ' + category + '\\n' +
+        '📞 *Telefone:* ' + (phone || 'Não informado') + '\\n' +
+        (insta ? '📸 *Instagram:* ' + insta + '\\n' : '') +
+        (rating > 0 ? '⭐ *Avaliação:* ' + '★'.repeat(rating) + '\\n' : '') +
+        '\\n🌐 Veja este e outros 2.600+ prestadores no Serviços BF:\\nhttps://catalogodeservicosbf.vercel.app';
+
+      if (navigator.share) {
+        navigator.share({
+          title: 'Serviços BF - ' + name,
+          text: shareText
+        }).catch(() => {});
+      } else {
+        const waUrl = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(shareText);
+        window.open(waUrl, '_blank');
       }
     }
 
@@ -812,6 +971,14 @@ const htmlContent = `<!DOCTYPE html>
       return \`<div class="star-rating d-inline-block">\${starsHtml}</div>\`;
     }
 
+    function highlightText(text, query) {
+      if (!text || !query || query.length < 3) return escapeHtml(text);
+      const escapedText = escapeHtml(text);
+      const escapedQuery = escapeHtml(query);
+      const regex = new RegExp('(' + escapedQuery.replace(/[-\\/\\\\^$*+?.()|[\\]{}]/g, '\\\\$&') + ')', 'gi');
+      return escapedText.replace(regex, '<mark class="bg-warning-subtle text-dark px-1 rounded">$1</mark>');
+    }
+
     function selectCategoryByName(catName) {
       categorySelect.value = catName;
       currentCategory = catName;
@@ -823,6 +990,12 @@ const htmlContent = `<!DOCTYPE html>
       const activeList = getActiveDataset();
       const query = searchInput.value.toLowerCase().trim();
       const isQueryValid = query.length >= 3;
+
+      // Expandir busca com Sinônimos Inteligentes
+      let expandedKeywords = [query];
+      if (isQueryValid && SYNONYMS[query]) {
+        expandedKeywords = expandedKeywords.concat(SYNONYMS[query]);
+      }
 
       // Regra: Se a busca tiver menos de 3 letras E nenhuma categoria específica estiver selecionada, não exibir os contatos!
       if ((currentCategory === 'NONE' || currentCategory === 'ALL') && !isQueryValid && !onlyFavorites && minRatingFilter === 0) {
@@ -877,13 +1050,15 @@ const htmlContent = `<!DOCTYPE html>
 
         if (isQueryValid) {
           const matchText = (c.name + ' ' + c.org + ' ' + c.category + ' ' + c.phone_primary + ' ' + (c.instagram || '') + ' ' + c.wa_description + ' ' + c.note).toLowerCase();
-          if (!matchText.includes(query)) {
+          const matchesAny = expandedKeywords.some(kw => matchText.includes(kw));
+          if (!matchesAny) {
             continue;
           }
         }
 
         count++;
         const isFav = favorites.includes(c.filename);
+        const isVip = userRating === 5 || (c.wa_description && (c.wa_description.toLowerCase().includes('bem indicado') || c.wa_description.toLowerCase().includes('bom')));
 
         const col = document.createElement('div');
         col.className = 'col-12 col-md-6 col-lg-4';
@@ -908,10 +1083,18 @@ const htmlContent = `<!DOCTYPE html>
           \`;
         }
 
-        let orgHtml = c.org ? \`<div class="text-muted small mb-1"><i class="bi bi-building me-1"></i>\${escapeHtml(c.org)}</div>\` : '';
+        let shareButtonHtml = \`
+          <button class="btn-share" onclick="shareContactCard('\${escapeHtml(c.name)}', '\${escapeHtml(c.category)}', '\${escapeHtml(c.phone_primary)}', \${userRating}, '\${escapeHtml(c.instagram)}')" title="Compartilhar no WhatsApp">
+            <i class="bi bi-share-fill"></i> Compartilhar
+          </button>
+        \`;
+
+        let vipBadgeHtml = isVip ? \`<span class="badge bg-warning text-dark border border-warning-subtle rounded-pill small me-1"><i class="bi bi-trophy-fill me-1"></i>Recomendado</span>\` : '';
+
+        let orgHtml = c.org ? \`<div class="text-muted small mb-1"><i class="bi bi-building me-1"></i>\${highlightText(c.org, query)}</div>\` : '';
         let bizDescHtml = c.wa_description ? \`
           <div class="biz-desc mt-2">
-            <i class="bi bi-info-circle me-1"></i> \${escapeHtml(c.wa_description)}
+            <i class="bi bi-info-circle me-1"></i> \${highlightText(c.wa_description, query)}
           </div>
         \` : '';
 
@@ -933,8 +1116,11 @@ const htmlContent = `<!DOCTYPE html>
               <div class="d-flex align-items-center gap-2" style="min-width: 0;">
                 \${renderAvatar(c)}
                 <div class="text-truncate">
-                  <h6 class="fw-bold mb-0 text-dark text-truncate">\${escapeHtml(c.name)}</h6>
-                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small" style="font-size: 0.75rem;">
+                  <div class="d-flex align-items-center flex-wrap">
+                    \${vipBadgeHtml}
+                    <h6 class="fw-bold mb-0 text-dark text-truncate d-inline">\${highlightText(c.name, query)}</h6>
+                  </div>
+                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small mt-1" style="font-size: 0.75rem;">
                     \${escapeHtml(c.category)}
                   </span>
                 </div>
@@ -963,6 +1149,7 @@ const htmlContent = `<!DOCTYPE html>
             <div class="mt-auto pt-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div class="d-flex align-items-center gap-1">
                 \${instaButtonHtml}
+                \${shareButtonHtml}
               </div>
               \${waButtonHtml}
             </div>
@@ -1481,4 +1668,4 @@ const htmlContent = `<!DOCTYPE html>
 
 fs.writeFileSync(path.join(dir, 'catalogo_servicos.html'), htmlContent, 'utf8');
 fs.writeFileSync(path.join(dir, 'index.html'), htmlContent, 'utf8');
-console.log('build_html.js atualizado: busca ativada apenas com mínimo de 3 letras!');
+console.log('build_html.js atualizado com super novidades: Sinônimos Inteligentes, Destaque Amarelo, Selo Recomendado, Botão Compartilhar e Modal de Indicação de Prestador!');
