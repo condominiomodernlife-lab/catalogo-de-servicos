@@ -306,6 +306,10 @@ const htmlContent = `<!DOCTYPE html>
         <strong>Modo Administrador Ativo (Serviços BF)</strong> — Sincronização em tempo real ativada.
       </div>
       <div class="d-flex align-items-center gap-2">
+        <button id="pending-approvals-btn" class="btn btn-sm btn-warning text-dark position-relative" onclick="openPendingApprovalsModal()">
+          <i class="bi bi-hourglass-split me-1"></i> Fila de Aprovação
+          <span id="pending-badge-count" class="badge bg-danger rounded-circle ms-1">0</span>
+        </button>
         <button class="btn btn-sm btn-outline-primary text-dark" onclick="syncAllToSupabase()">
           <i class="bi bi-cloud-upload me-1"></i> Sincronizar Supabase
         </button>
@@ -465,7 +469,7 @@ const htmlContent = `<!DOCTYPE html>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <p class="text-muted small">Conhece um excelente profissional? Indique-o para o catálogo de Serviços BF!</p>
+          <p class="text-muted small">Conhece um excelente profissional? Indique-o! O cadastro passará por aprovação da administração antes de ser publicado no catálogo público.</p>
           <form id="suggestForm">
             <div class="mb-3">
               <label class="form-label fw-semibold small">Nome do Prestador / Profissional *</label>
@@ -495,7 +499,28 @@ const htmlContent = `<!DOCTYPE html>
         </div>
         <div class="modal-footer border-top-0 pt-0">
           <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-success rounded-pill px-4" onclick="submitSuggestedContact()">Enviar Indicação</button>
+          <button type="button" class="btn btn-success rounded-pill px-4" onclick="submitSuggestedContact()">Enviar para Aprovação</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Fila de Aprovações (Admin Only) -->
+  <div class="modal fade" id="pendingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom-0 pb-0">
+          <h5 class="modal-title fw-bold"><i class="bi bi-hourglass-split text-warning me-2"></i>Fila de Aprovação de Prestadores</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Os cadastros abaixo foram indicados por moradores e estão aguardando sua validação para irem ao ar no catálogo público.</p>
+          <div id="pending-items-list">
+            <!-- Dynamic pending items -->
+          </div>
+        </div>
+        <div class="modal-footer border-top-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Fechar</button>
         </div>
       </div>
     </div>
@@ -648,6 +673,7 @@ const htmlContent = `<!DOCTYPE html>
     let deferredPrompt = null;
     const pwaModal = new bootstrap.Modal(document.getElementById('pwaModal'));
     const suggestModal = new bootstrap.Modal(document.getElementById('suggestModal'));
+    const pendingModal = new bootstrap.Modal(document.getElementById('pendingModal'));
 
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -673,6 +699,8 @@ const htmlContent = `<!DOCTYPE html>
       suggestModal.show();
     }
 
+    let pendingContacts = JSON.parse(localStorage.getItem('pending_contacts') || '[]');
+
     async function submitSuggestedContact() {
       const name = document.getElementById('sug-name').value.trim();
       const phone = document.getElementById('sug-phone').value.trim();
@@ -696,19 +724,20 @@ const htmlContent = `<!DOCTYPE html>
       const newObj = {
         filename: 'sug_' + Date.now() + '.vcf',
         name: name,
-        org: 'Indicação de Morador',
+        org: 'Indicação de Morador (Aguardando Aprovação)',
         category: category,
         instagram: insta,
         phone_primary: phone,
         phones: [phone],
         wa_link: waLink,
         email: '',
-        wa_description: desc ? 'Indicação: ' + desc : 'Indicado por morador',
-        rating: 5
+        wa_description: '[PENDENTE AGUARDANDO APROVAÇÃO] ' + (desc ? desc : 'Indicado por morador'),
+        rating: 5,
+        status: 'PENDENTE'
       };
 
-      addedContacts.push(newObj);
-      localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
+      pendingContacts.push(newObj);
+      localStorage.setItem('pending_contacts', JSON.stringify(pendingContacts));
 
       if (supabaseClient) {
         try {
@@ -720,10 +749,124 @@ const htmlContent = `<!DOCTYPE html>
       }
 
       suggestModal.hide();
-      categorySelect.value = category;
-      currentCategory = category;
+      updatePendingBadge();
+      alert('🎉 Muito obrigado!\n\nA indicação do prestador "' + name + '" foi enviada com sucesso e está AGUARDANDO APROVAÇÃO do administrador antes de ir ao ar!');
+    }
+
+    function updatePendingBadge() {
+      const activeList = getActiveDatasetAll();
+      const pendingItems = activeList.filter(c => c.status === 'PENDENTE' || (c.wa_description && c.wa_description.startsWith('[PENDENTE')));
+      const badge = document.getElementById('pending-badge-count');
+      if (badge) {
+        badge.innerText = pendingItems.length;
+      }
+    }
+
+    function openPendingApprovalsModal() {
+      if (!isAdmin) return;
+      renderPendingApprovals();
+      pendingModal.show();
+    }
+
+    function renderPendingApprovals() {
+      const listEl = document.getElementById('pending-items-list');
+      const activeList = getActiveDatasetAll();
+      const pendingItems = activeList.filter(c => c.status === 'PENDENTE' || (c.wa_description && c.wa_description.startsWith('[PENDENTE')));
+
+      if (pendingItems.length === 0) {
+        listEl.innerHTML = \`
+          <div class="text-center py-4 text-muted">
+            <i class="bi bi-check2-circle text-success display-4 mb-2 d-block"></i>
+            <h6>Nenhum cadastro pendente no momento.</h6>
+            <p class="small">Todas as indicações enviadas por moradores foram revisadas.</p>
+          </div>
+        \`;
+        return;
+      }
+
+      let html = '';
+      for (let item of pendingItems) {
+        html += \`
+          <div class="card border mb-3 rounded-3 shadow-sm p-3">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <span class="badge bg-warning text-dark mb-1"><i class="bi bi-clock me-1"></i>Aguardando Aprovação</span>
+                <h6 class="fw-bold text-dark mb-1">\${escapeHtml(item.name)}</h6>
+                <div class="small text-muted mb-1">🏷️ Categoria: <strong>\${escapeHtml(item.category)}</strong></div>
+                <div class="small text-muted mb-1">📞 Telefone: <strong>\${escapeHtml(item.phone_primary)}</strong> \${item.instagram ? ' | 📸 ' + escapeHtml(item.instagram) : ''}</div>
+                <div class="biz-desc mt-2 small">
+                  \${escapeHtml(item.wa_description)}
+                </div>
+              </div>
+              <div class="d-flex flex-column gap-2 ms-3">
+                <button class="btn btn-sm btn-success rounded-pill px-3" onclick="approvePendingContact('\${escapeHtml(item.filename)}')">
+                  <i class="bi bi-check-lg me-1"></i> Aprovar
+                </button>
+                <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="rejectPendingContact('\${escapeHtml(item.filename)}')">
+                  <i class="bi bi-x-lg me-1"></i> Rejeitar
+                </button>
+              </div>
+            </div>
+          </div>
+        \`;
+      }
+      listEl.innerHTML = html;
+    }
+
+    async function approvePendingContact(filename) {
+      if (!isAdmin) return;
+      const activeList = getActiveDatasetAll();
+      const item = activeList.find(c => c.filename === filename);
+      if (!item) return;
+
+      const cleanDesc = (item.wa_description || '').replace(/^\[PENDENTE AGUARDANDO APROVAÇÃO\]\s*/i, '');
+      const approvedObj = {
+        ...item,
+        org: item.org === 'Indicação de Morador (Aguardando Aprovação)' ? 'Indicação de Morador' : item.org,
+        wa_description: cleanDesc,
+        status: 'APROVADO'
+      };
+
+      addedContacts = addedContacts.filter(c => c.filename !== filename);
+      addedContacts.push(approvedObj);
+      localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
+
+      pendingContacts = pendingContacts.filter(c => c.filename !== filename);
+      localStorage.setItem('pending_contacts', JSON.stringify(pendingContacts));
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from('contatos').upsert([approvedObj]);
+          loadSupabaseData();
+        } catch(e) { console.error(e); }
+      }
+
+      renderPendingApprovals();
+      updatePendingBadge();
       renderContacts();
-      alert('🎉 Muito obrigado! O prestador "' + name + '" foi cadastrado e enviado ao sistema com sucesso!');
+      alert('✅ O cadastro de "' + item.name + '" foi APROVADO com sucesso e agora está público no catálogo!');
+    }
+
+    async function rejectPendingContact(filename) {
+      if (!isAdmin) return;
+      if (!confirm('Deseja REJEITAR e excluir este cadastro pendente?')) return;
+
+      pendingContacts = pendingContacts.filter(c => c.filename !== filename);
+      localStorage.setItem('pending_contacts', JSON.stringify(pendingContacts));
+
+      deletedIds.push(filename);
+      localStorage.setItem('contacts_deleted', JSON.stringify(deletedIds));
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from('contatos').delete().eq('filename', filename);
+          loadSupabaseData();
+        } catch(e) { console.error(e); }
+      }
+
+      renderPendingApprovals();
+      updatePendingBadge();
+      renderContacts();
     }
 
     // Compartilhar Contato no WhatsApp / Native API
@@ -784,6 +927,7 @@ const htmlContent = `<!DOCTYPE html>
         if (!error && data && data.length > 0) {
           supabaseContacts = data;
           document.getElementById('db-status').innerHTML = '<i class="bi bi-wifi me-1"></i> Supabase Online (' + data.length + ')';
+          updatePendingBadge();
           renderContacts();
         }
       } catch (err) {
@@ -841,6 +985,7 @@ const htmlContent = `<!DOCTYPE html>
       if (isAdmin) {
         document.body.classList.add('is-admin');
         adminLoginBtn.style.display = 'none';
+        updatePendingBadge();
       } else {
         document.body.classList.remove('is-admin');
         adminLoginBtn.style.display = 'inline-block';
@@ -886,7 +1031,7 @@ const htmlContent = `<!DOCTYPE html>
       }
     }
 
-    function getActiveDataset() {
+    function getActiveDatasetAll() {
       const baseList = supabaseContacts || INITIAL_CONTACTS;
       let list = [];
 
@@ -906,7 +1051,19 @@ const htmlContent = `<!DOCTYPE html>
           list.push({ ...a });
         }
       }
+      for (let p of pendingContacts) {
+        if (deletedIds.includes(p.filename)) continue;
+        if (!list.some(x => x.filename === p.filename)) {
+          list.push({ ...p });
+        }
+      }
       return list;
+    }
+
+    function getActiveDataset() {
+      const fullList = getActiveDatasetAll();
+      // Ocultar itens pendentes do público comum!
+      return fullList.filter(c => c.status !== 'PENDENTE' && (!c.wa_description || !c.wa_description.startsWith('[PENDENTE')));
     }
 
     function updateStats(activeDataset) {
@@ -1429,7 +1586,7 @@ const htmlContent = `<!DOCTYPE html>
 
     function openEditModal(filename) {
       if (!isAdmin) return;
-      const activeList = getActiveDataset();
+      const activeList = getActiveDatasetAll();
       const item = activeList.find(c => c.filename === filename);
       if (!item) return;
 
@@ -1486,7 +1643,8 @@ const htmlContent = `<!DOCTYPE html>
         wa_link: waLink,
         email: email,
         wa_description: desc,
-        rating: ratingVal
+        rating: ratingVal,
+        status: 'APROVADO'
       };
 
       if (id) {
@@ -1559,11 +1717,14 @@ const htmlContent = `<!DOCTYPE html>
         localStorage.removeItem('contacts_edits');
         localStorage.removeItem('contacts_deleted');
         localStorage.removeItem('contacts_added');
+        localStorage.removeItem('pending_contacts');
         customEdits = {};
         deletedIds = [];
         addedContacts = [];
+        pendingContacts = [];
         currentCategory = 'NONE';
         categorySelect.value = 'NONE';
+        updatePendingBadge();
         renderContacts();
       }
     }
@@ -1661,6 +1822,7 @@ const htmlContent = `<!DOCTYPE html>
 
     // Initial render
     applyAdminState();
+    updatePendingBadge();
     renderContacts();
   </script>
 </body>
@@ -1668,4 +1830,4 @@ const htmlContent = `<!DOCTYPE html>
 
 fs.writeFileSync(path.join(dir, 'catalogo_servicos.html'), htmlContent, 'utf8');
 fs.writeFileSync(path.join(dir, 'index.html'), htmlContent, 'utf8');
-console.log('build_html.js atualizado com super novidades: Sinônimos Inteligentes, Destaque Amarelo, Selo Recomendado, Botão Compartilhar e Modal de Indicação de Prestador!');
+console.log('build_html.js atualizado com Fila de Aprovação de Cadastros para o Administrador!');
