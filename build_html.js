@@ -155,23 +155,6 @@ const htmlContent = `<!DOCTYPE html>
       opacity: 0.92;
       color: white;
     }
-    .btn-share {
-      background: #eef2ff;
-      color: #4f46e5;
-      font-weight: 600;
-      border-radius: 50px;
-      padding: 0.4rem 0.8rem;
-      border: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      font-size: 0.85rem;
-      transition: background 0.2s;
-    }
-    .btn-share:hover {
-      background: #e0e7ff;
-      color: #3730a3;
-    }
     .avatar-wrapper {
       position: relative;
       width: 48px;
@@ -276,7 +259,7 @@ const htmlContent = `<!DOCTYPE html>
       display: none !important;
     }
     body.is-admin .admin-only {
-      display: block !important;
+      display: inline-block !important;
     }
     .admin-bar {
       background: #fff3cd;
@@ -306,10 +289,6 @@ const htmlContent = `<!DOCTYPE html>
         <strong>Modo Administrador Ativo (Serviços BF)</strong> — Sincronização em tempo real ativada.
       </div>
       <div class="d-flex align-items-center gap-2">
-        <button id="pending-approvals-btn" class="btn btn-sm btn-warning text-dark position-relative" onclick="openPendingApprovalsModal()">
-          <i class="bi bi-hourglass-split me-1"></i> Fila de Aprovação
-          <span id="pending-badge-count" class="badge bg-danger rounded-circle ms-1">0</span>
-        </button>
         <button class="btn btn-sm btn-outline-primary text-dark" onclick="syncAllToSupabase()">
           <i class="bi bi-cloud-upload me-1"></i> Sincronizar Supabase
         </button>
@@ -374,7 +353,7 @@ const htmlContent = `<!DOCTYPE html>
                 <i class="bi bi-search text-muted"></i>
               </span>
               <input type="text" id="search-input" class="form-control border-start-0 search-box rounded-end-pill" 
-                     placeholder="Buscar por serviço, nome, @insta (mínimo 3 letras)...">
+                     placeholder="Buscar por serviço, nome, @insta...">
             </div>
           </div>
 
@@ -382,6 +361,7 @@ const htmlContent = `<!DOCTYPE html>
           <div class="col-lg-3 col-md-6">
             <select id="category-select" class="form-select rounded-pill">
               <option value="NONE" selected>📂 Selecione uma Categoria...</option>
+              <option value="ALL">📋 Todas as Categorias (${totalContacts})</option>
               ${sortedCategories.map(([cat, count]) => `
                 <option value="${cat.replace(/"/g, '&quot;')}">${categoryIcons[cat] || '🏷️'} ${cat} (${count})</option>
               `).join('')}
@@ -400,71 +380,39 @@ const htmlContent = `<!DOCTYPE html>
             </select>
           </div>
 
-          <!-- Action Buttons / Options Menu Dropdown -->
+          <!-- Admin & Action Buttons -->
           <div class="col-lg-4 col-md-12 text-lg-end text-center">
-            <!-- Indicar Prestador Quick Button -->
-            <button class="btn btn-outline-success rounded-pill me-2 fw-semibold" onclick="openSuggestModal()">
-              <i class="bi bi-plus-circle me-1"></i> Indicar Prestador
+            <!-- PWA Install Button -->
+            <button id="pwa-install-btn" class="btn btn-warning rounded-pill me-1 text-dark fw-semibold" onclick="promptInstallPWA()">
+              <i class="bi bi-phone-vibrate me-1"></i> Instalar App
             </button>
 
-            <!-- Menu de Opções Dropdown (Instalar App & Aba Admin) -->
-            <div class="dropdown d-inline-block">
-              <button class="btn btn-primary rounded-pill dropdown-toggle fw-semibold px-3" type="button" id="optionsMenuBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-list me-1"></i> Menu
+            <button id="admin-login-btn" class="btn btn-outline-secondary rounded-pill me-1" onclick="promptAdminLogin()">
+              <i class="bi bi-lock me-1"></i> Admin
+            </button>
+
+            <button class="btn btn-success rounded-pill me-1 admin-only" onclick="triggerVcfUpload()">
+              <i class="bi bi-file-earmark-arrow-up me-1"></i> VCF
+            </button>
+            <input type="file" id="vcf-file-input" accept=".vcf" multiple style="display:none;" onchange="handleVCFFileSelect(event)">
+
+            <button class="btn btn-primary rounded-pill me-1 admin-only" onclick="openAddModal()">
+              <i class="bi bi-plus-lg me-1"></i> Novo
+            </button>
+            <div class="btn-group admin-only">
+              <button class="btn btn-outline-success rounded-pill dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="bi bi-download"></i>
               </button>
-              <ul class="dropdown-menu dropdown-menu-end rounded-4 shadow border-0 p-2 mt-2" aria-labelledby="optionsMenuBtn" style="min-width: 240px; z-index: 1050;">
-                <!-- Opção 1: Instalar App (PWA) -->
-                <li>
-                  <button class="dropdown-item rounded-3 py-2 fw-semibold text-dark" onclick="promptInstallPWA()">
-                    <i class="bi bi-phone-vibrate text-warning me-2 fs-5"></i> 📱 Instalar App
-                  </button>
-                </li>
-                
-                <!-- Opção 2: Aba Admin -->
-                <li>
-                  <button id="admin-menu-btn" class="dropdown-item rounded-3 py-2 fw-semibold text-dark" onclick="handleAdminMenuClick()">
-                    <i class="bi bi-shield-lock text-primary me-2 fs-5"></i> <span id="admin-menu-text">🔒 Área Admin</span>
-                  </button>
-                </li>
-
-                <li><hr class="dropdown-divider my-1"></li>
-
-                <!-- Opção 3: Indicar Prestador -->
-                <li>
-                  <button class="dropdown-item rounded-3 py-2 text-success fw-semibold" onclick="openSuggestModal()">
-                    <i class="bi bi-plus-circle me-2 fs-5"></i> ➕ Indicar Prestador
-                  </button>
-                </li>
-
-                <!-- Opção 4: Favoritos -->
-                <li>
-                  <button class="dropdown-item rounded-3 py-2 text-warning fw-semibold" onclick="toggleFavsFromMenu()">
-                    <i class="bi bi-star-fill me-2 fs-5"></i> ⭐ Meus Favoritos
-                  </button>
-                </li>
-
-                <!-- Opções de Administrador (Modo Admin) -->
-                <li class="admin-only"><hr class="dropdown-divider my-1"></li>
-                <li class="admin-only">
-                  <button class="dropdown-item rounded-3 py-2 text-dark fw-semibold" onclick="openPendingApprovalsModal()">
-                    <i class="bi bi-hourglass-split me-2 text-warning fs-5"></i> Fila de Aprovação (<span id="pending-badge-count-menu">0</span>)
-                  </button>
-                </li>
-                <li class="admin-only">
-                  <button class="dropdown-item rounded-3 py-2 text-primary fw-semibold" onclick="openAddModal()">
-                    <i class="bi bi-person-plus-fill me-2 fs-5"></i> Novo Prestador (Admin)
-                  </button>
-                </li>
-                <li class="admin-only">
-                  <button class="dropdown-item rounded-3 py-2 text-success fw-semibold" onclick="triggerVcfUpload()">
-                    <i class="bi bi-file-earmark-arrow-up-fill me-2 fs-5"></i> Importar VCF
-                  </button>
-                </li>
+              <ul class="dropdown-menu dropdown-menu-end shadow">
+                <li><a class="dropdown-item" href="#" onclick="exportCSV(event)"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Exportar CSV</a></li>
+                <li><a class="dropdown-item" href="#" onclick="exportJSON(event)"><i class="bi bi-filetype-json me-2 text-primary"></i>Exportar JSON</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="#" onclick="exportBlacklist(event)"><i class="bi bi-shield-x me-2"></i>Baixar contatos_excluidos.json</a></li>
               </ul>
             </div>
-
-            <!-- VCF File Input -->
-            <input type="file" id="vcf-file-input" accept=".vcf" multiple style="display:none;" onchange="handleVCFFileSelect(event)">
+            <button id="toggle-favs-btn" class="btn btn-outline-warning rounded-pill ms-1" title="Ver Favoritos">
+              <i class="bi bi-star-fill"></i>
+            </button>
           </div>
         </div>
       </div>
@@ -474,7 +422,7 @@ const htmlContent = `<!DOCTYPE html>
     <div class="d-flex justify-content-between align-items-center mb-3 text-muted">
       <div><strong id="visible-count">0</strong> contatos exibidos</div>
       <div class="d-flex align-items-center gap-3">
-        <div id="active-category-label" class="fw-semibold text-primary">Digite pelo menos 3 letras ou selecione uma categoria</div>
+        <div id="active-category-label" class="fw-semibold text-primary">Selecione uma categoria ou pesquise acima</div>
         <button id="reset-edits-btn" class="btn btn-sm btn-link text-muted p-0 text-decoration-none admin-only" onclick="resetChanges()">
           <i class="bi bi-arrow-counterclockwise"></i> Restaurar originais
         </button>
@@ -484,72 +432,6 @@ const htmlContent = `<!DOCTYPE html>
     <!-- Contacts Grid -->
     <div class="row g-3" id="contacts-grid">
       <!-- Initial Landing / Empty State or Filtered Cards -->
-    </div>
-  </div>
-
-  <!-- Modal Indicar Novo Prestador (Moradores / Público) -->
-  <div class="modal fade" id="suggestModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content rounded-4 border-0 shadow">
-        <div class="modal-header border-bottom-0 pb-0">
-          <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle text-success me-2"></i>Indicar Prestador de Serviço</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p class="text-muted small">Conhece um excelente profissional? Indique-o! O cadastro passará por aprovação da administração antes de ser publicado no catálogo público.</p>
-          <form id="suggestForm">
-            <div class="mb-3">
-              <label class="form-label fw-semibold small">Nome do Prestador / Profissional *</label>
-              <input type="text" id="sug-name" class="form-control rounded-3" required placeholder="Ex: Marcos Ar Condicionado">
-            </div>
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <label class="form-label fw-semibold small">Categoria *</label>
-                <select id="sug-category" class="form-select rounded-3">
-                  ${sortedCategories.map(([cat]) => `<option value="${cat.replace(/"/g, '&quot;')}">${categoryIcons[cat] || '🏷️'} ${cat}</option>`).join('')}
-                </select>
-              </div>
-              <div class="col-md-6 mb-3">
-                <label class="form-label fw-semibold small">Telefone / WhatsApp *</label>
-                <input type="text" id="sug-phone" class="form-control rounded-3" required placeholder="Ex: (27) 99999-8888">
-              </div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label fw-semibold small">Instagram (@perfil) (opcional)</label>
-              <input type="text" id="sug-insta" class="form-control rounded-3" placeholder="Ex: @marcosrefrizer">
-            </div>
-            <div class="mb-3">
-              <label class="form-label fw-semibold small">Por que você o recomenda? (opcional)</label>
-              <textarea id="sug-desc" class="form-control rounded-3" rows="2" placeholder="Ex: Pontual, preço justo e serviço excelente no meu condomínio."></textarea>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer border-top-0 pt-0">
-          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-success rounded-pill px-4" onclick="submitSuggestedContact()">Enviar para Aprovação</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Fila de Aprovações (Admin Only) -->
-  <div class="modal fade" id="pendingModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-      <div class="modal-content rounded-4 border-0 shadow">
-        <div class="modal-header border-bottom-0 pb-0">
-          <h5 class="modal-title fw-bold"><i class="bi bi-hourglass-split text-warning me-2"></i>Fila de Aprovação de Prestadores</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p class="text-muted small">Os cadastros abaixo foram indicados por moradores e estão aguardando sua validação para irem ao ar no catálogo público.</p>
-          <div id="pending-items-list">
-            <!-- Dynamic pending items -->
-          </div>
-        </div>
-        <div class="modal-footer border-top-0 pt-0">
-          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Fechar</button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -667,18 +549,6 @@ const htmlContent = `<!DOCTYPE html>
   <script>
     const INITIAL_CONTACTS = ${JSON.stringify(contacts)};
     
-    // Dicionário Inteligente de Sinônimos
-    const SYNONYMS = {
-      'encanador': ['bombeiro', 'bombeiro hidráulico', 'vazamento', 'desentupidora', 'infiltração', 'água', 'tubulação'],
-      'geladeira': ['climatização', 'refrigeração', 'maqfrio', 'freezer', 'boiller', 'conserto', 'aquecedor'],
-      'tomada': ['eletricista', 'elétrica', 'disjuntor', 'fiação', 'curto', 'luz', 'iluminação'],
-      'gás': ['tubulação', 'fogão', 'botijão', 'aquecedor', 'endutos', 'gás capixaba'],
-      'marmita': ['gastronomia', 'comida', 'salgado', 'almoço', 'refeição', 'restaurante', 'buffet'],
-      'jardim': ['paisagismo', 'planta', 'grama', 'poda', 'jardineiro'],
-      'pintura': ['pintor', 'fachada', 'massa corrida', 'papel de parede', 'tinta'],
-      'chaveiro': ['fechadura', 'chave', 'portão', 'fechadura eletrônica', 'copia de chave']
-    };
-
     // Configuração Supabase Realtime
     const SUPABASE_URL = 'https://ioakxfrwgykxkgnrzxqz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvYWt4ZnJ3Z3lreGtnbnJ6eHF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTY5NjEsImV4cCI6MjEwMzkzMjk2MX0.pWL-sJa1ueuKCVaP5EfFLvghbeI3YM-PZ5o2fGSC-RM';
@@ -699,8 +569,6 @@ const htmlContent = `<!DOCTYPE html>
     // PWA Install Prompt Event
     let deferredPrompt = null;
     const pwaModal = new bootstrap.Modal(document.getElementById('pwaModal'));
-    const suggestModal = new bootstrap.Modal(document.getElementById('suggestModal'));
-    const pendingModal = new bootstrap.Modal(document.getElementById('pendingModal'));
 
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
@@ -718,224 +586,6 @@ const htmlContent = `<!DOCTYPE html>
         });
       } else {
         pwaModal.show();
-      }
-    }
-
-    function openSuggestModal() {
-      document.getElementById('suggestForm').reset();
-      suggestModal.show();
-    }
-
-    let pendingContacts = JSON.parse(localStorage.getItem('pending_contacts') || '[]');
-
-    async function submitSuggestedContact() {
-      const name = document.getElementById('sug-name').value.trim();
-      const phone = document.getElementById('sug-phone').value.trim();
-      const category = document.getElementById('sug-category').value;
-      let insta = document.getElementById('sug-insta').value.trim();
-      const desc = document.getElementById('sug-desc').value.trim();
-
-      if (!name || !phone) {
-        alert('Por favor, informe o nome e o telefone do prestador.');
-        return;
-      }
-      if (insta && !insta.startsWith('@')) insta = '@' + insta;
-
-      let digits = phone.replace(/\\D/g, '');
-      let waLink = '';
-      if (digits) {
-        if (digits.length === 10 || digits.length === 11) digits = '55' + digits;
-        waLink = 'https://wa.me/' + digits;
-      }
-
-      const newObj = {
-        filename: 'sug_' + Date.now() + '.vcf',
-        name: name,
-        org: 'Indicação de Morador (Aguardando Aprovação)',
-        category: category,
-        instagram: insta,
-        phone_primary: phone,
-        phones: [phone],
-        wa_link: waLink,
-        email: '',
-        wa_description: '[PENDENTE AGUARDANDO APROVAÇÃO] ' + (desc ? desc : 'Indicado por morador'),
-        rating: 5,
-        status: 'PENDENTE'
-      };
-
-      pendingContacts.push(newObj);
-      localStorage.setItem('pending_contacts', JSON.stringify(pendingContacts));
-
-      if (supabaseClient) {
-        try {
-          await supabaseClient.from('contatos').upsert([newObj]);
-          loadSupabaseData();
-        } catch (e) {
-          console.error(e);
-        }
-      }
-
-      suggestModal.hide();
-      updatePendingBadge();
-      alert('🎉 Muito obrigado!\n\nA indicação do prestador "' + name + '" foi enviada com sucesso e está AGUARDANDO APROVAÇÃO do administrador antes de ir ao ar!');
-    }
-
-    function updatePendingBadge() {
-      const activeList = getActiveDatasetAll();
-      const pendingItems = activeList.filter(c => c.status === 'PENDENTE' || (c.wa_description && c.wa_description.startsWith('[PENDENTE')));
-      
-      const badgeBar = document.getElementById('pending-badge-count');
-      const badgeMenu = document.getElementById('pending-badge-count-menu');
-      if (badgeBar) badgeBar.innerText = pendingItems.length;
-      if (badgeMenu) badgeMenu.innerText = pendingItems.length;
-    }
-
-    function openPendingApprovalsModal() {
-      if (!isAdmin) return;
-      renderPendingApprovals();
-      pendingModal.show();
-    }
-
-    function renderPendingApprovals() {
-      const listEl = document.getElementById('pending-items-list');
-      const activeList = getActiveDatasetAll();
-      const pendingItems = activeList.filter(c => c.status === 'PENDENTE' || (c.wa_description && c.wa_description.startsWith('[PENDENTE')));
-
-      if (pendingItems.length === 0) {
-        listEl.innerHTML = \`
-          <div class="text-center py-4 text-muted">
-            <i class="bi bi-check2-circle text-success display-4 mb-2 d-block"></i>
-            <h6>Nenhum cadastro pendente no momento.</h6>
-            <p class="small">Todas as indicações enviadas por moradores foram revisadas.</p>
-          </div>
-        \`;
-        return;
-      }
-
-      let html = '';
-      for (let item of pendingItems) {
-        html += \`
-          <div class="card border mb-3 rounded-3 shadow-sm p-3">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <span class="badge bg-warning text-dark mb-1"><i class="bi bi-clock me-1"></i>Aguardando Aprovação</span>
-                <h6 class="fw-bold text-dark mb-1">\${escapeHtml(item.name)}</h6>
-                <div class="small text-muted mb-1">🏷️ Categoria: <strong>\${escapeHtml(item.category)}</strong></div>
-                <div class="small text-muted mb-1">📞 Telefone: <strong>\${escapeHtml(item.phone_primary)}</strong> \${item.instagram ? ' | 📸 ' + escapeHtml(item.instagram) : ''}</div>
-                <div class="biz-desc mt-2 small">
-                  \${escapeHtml(item.wa_description)}
-                </div>
-              </div>
-              <div class="d-flex flex-column gap-2 ms-3">
-                <button class="btn btn-sm btn-success rounded-pill px-3" onclick="approvePendingContact('\${escapeHtml(item.filename)}')">
-                  <i class="bi bi-check-lg me-1"></i> Aprovar
-                </button>
-                <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="rejectPendingContact('\${escapeHtml(item.filename)}')">
-                  <i class="bi bi-x-lg me-1"></i> Rejeitar
-                </button>
-              </div>
-            </div>
-          </div>
-        \`;
-      }
-      listEl.innerHTML = html;
-    }
-
-    async function approvePendingContact(filename) {
-      if (!isAdmin) return;
-      const activeList = getActiveDatasetAll();
-      const item = activeList.find(c => c.filename === filename);
-      if (!item) return;
-
-      const cleanDesc = (item.wa_description || '').replace(/^\[PENDENTE AGUARDANDO APROVAÇÃO\]\s*/i, '');
-      const approvedObj = {
-        ...item,
-        org: item.org === 'Indicação de Morador (Aguardando Aprovação)' ? 'Indicação de Morador' : item.org,
-        wa_description: cleanDesc,
-        status: 'APROVADO'
-      };
-
-      addedContacts = addedContacts.filter(c => c.filename !== filename);
-      addedContacts.push(approvedObj);
-      localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
-
-      pendingContacts = pendingContacts.filter(c => c.filename !== filename);
-      localStorage.setItem('pending_contacts', JSON.stringify(pendingContacts));
-
-      if (supabaseClient) {
-        try {
-          await supabaseClient.from('contatos').upsert([approvedObj]);
-          loadSupabaseData();
-        } catch(e) { console.error(e); }
-      }
-
-      renderPendingApprovals();
-      updatePendingBadge();
-      renderContacts();
-      alert('✅ O cadastro de "' + item.name + '" foi APROVADO com sucesso e agora está público no catálogo!');
-    }
-
-    async function rejectPendingContact(filename) {
-      if (!isAdmin) return;
-      if (!confirm('Deseja REJEITAR e excluir este cadastro pendente?')) return;
-
-      pendingContacts = pendingContacts.filter(c => c.filename !== filename);
-      localStorage.setItem('pending_contacts', JSON.stringify(pendingContacts));
-
-      deletedIds.push(filename);
-      localStorage.setItem('contacts_deleted', JSON.stringify(deletedIds));
-
-      if (supabaseClient) {
-        try {
-          await supabaseClient.from('contatos').delete().eq('filename', filename);
-          loadSupabaseData();
-        } catch(e) { console.error(e); }
-      }
-
-      renderPendingApprovals();
-      updatePendingBadge();
-      renderContacts();
-    }
-
-    // Compartilhar Contato no WhatsApp / Native API
-    function shareContactCard(name, category, phone, rating, insta) {
-      const shareText = '📌 *Indicação de Serviço - Serviços BF*\\n\\n' +
-        '👤 *' + name + '*\\n' +
-        '🏷️ *Categoria:* ' + category + '\\n' +
-        '📞 *Telefone:* ' + (phone || 'Não informado') + '\\n' +
-        (insta ? '📸 *Instagram:* ' + insta + '\\n' : '') +
-        (rating > 0 ? '⭐ *Avaliação:* ' + '★'.repeat(rating) + '\\n' : '') +
-        '\\n🌐 Veja este e outros 2.600+ prestadores no Serviços BF:\\nhttps://catalogodeservicosbf.vercel.app';
-
-      if (navigator.share) {
-        navigator.share({
-          title: 'Serviços BF - ' + name,
-          text: shareText
-        }).catch(() => {});
-      } else {
-        const waUrl = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(shareText);
-        window.open(waUrl, '_blank');
-      }
-    }
-
-    function toggleFavsFromMenu() {
-      onlyFavorites = !onlyFavorites;
-      if (onlyFavorites) {
-        alert('⭐ Exibindo apenas seus contatos Favoritos.');
-        categorySelect.value = 'ALL';
-        currentCategory = 'ALL';
-      } else {
-        categorySelect.value = 'NONE';
-        currentCategory = 'NONE';
-      }
-      renderContacts();
-    }
-
-    function handleAdminMenuClick() {
-      if (isAdmin) {
-        logoutAdmin();
-      } else {
-        promptAdminLogin();
       }
     }
 
@@ -960,7 +610,11 @@ const htmlContent = `<!DOCTYPE html>
     const minRatingSelect = document.getElementById('min-rating-select');
     const visibleCount = document.getElementById('visible-count');
     const activeCategoryLabel = document.getElementById('active-category-label');
+    const toggleFavsBtn = document.getElementById('toggle-favs-btn');
+    const statTotal = document.getElementById('stat-total');
+    const statInsta = document.getElementById('stat-insta');
     const resetEditsBtn = document.getElementById('reset-edits-btn');
+    const adminLoginBtn = document.getElementById('admin-login-btn');
 
     const contactModal = new bootstrap.Modal(document.getElementById('contactModal'));
 
@@ -972,7 +626,6 @@ const htmlContent = `<!DOCTYPE html>
         if (!error && data && data.length > 0) {
           supabaseContacts = data;
           document.getElementById('db-status').innerHTML = '<i class="bi bi-wifi me-1"></i> Supabase Online (' + data.length + ')';
-          updatePendingBadge();
           renderContacts();
         }
       } catch (err) {
@@ -1027,14 +680,12 @@ const htmlContent = `<!DOCTYPE html>
     }
 
     function applyAdminState() {
-      const adminText = document.getElementById('admin-menu-text');
       if (isAdmin) {
         document.body.classList.add('is-admin');
-        if (adminText) adminText.innerHTML = '🔓 Sair do Modo Admin';
-        updatePendingBadge();
+        adminLoginBtn.style.display = 'none';
       } else {
         document.body.classList.remove('is-admin');
-        if (adminText) adminText.innerHTML = '🔒 Área Admin';
+        adminLoginBtn.style.display = 'inline-block';
       }
     }
 
@@ -1077,7 +728,7 @@ const htmlContent = `<!DOCTYPE html>
       }
     }
 
-    function getActiveDatasetAll() {
+    function getActiveDataset() {
       const baseList = supabaseContacts || INITIAL_CONTACTS;
       let list = [];
 
@@ -1097,19 +748,7 @@ const htmlContent = `<!DOCTYPE html>
           list.push({ ...a });
         }
       }
-      for (let p of pendingContacts) {
-        if (deletedIds.includes(p.filename)) continue;
-        if (!list.some(x => x.filename === p.filename)) {
-          list.push({ ...p });
-        }
-      }
       return list;
-    }
-
-    function getActiveDataset() {
-      const fullList = getActiveDatasetAll();
-      // Ocultar itens pendentes do público comum!
-      return fullList.filter(c => c.status !== 'PENDENTE' && (!c.wa_description || !c.wa_description.startsWith('[PENDENTE')));
     }
 
     function updateStats(activeDataset) {
@@ -1174,37 +813,27 @@ const htmlContent = `<!DOCTYPE html>
       return \`<div class="star-rating d-inline-block">\${starsHtml}</div>\`;
     }
 
-    function highlightText(text, query) {
-      if (!text || !query || query.length < 3) return escapeHtml(text || '');
-      const str = (text || '').toString();
-      const escapedText = escapeHtml(str);
-      const escapedQuery = escapeHtml(query);
-      const regex = new RegExp('(' + escapedQuery.replace(/[-\\/\\\\^$*+?.()|[\\]{}]/g, '\\\\$&') + ')', 'gi');
-      return escapedText.replace(regex, '<mark class="bg-warning-subtle text-dark px-1 rounded">$1</mark>');
-    }
-
     function selectCategoryByName(catName) {
       categorySelect.value = catName;
       currentCategory = catName;
-      activeCategoryLabel.innerText = 'Categoria: ' + catName;
+      activeCategoryLabel.innerText = 'Categoria: ' + (catName === 'ALL' ? 'Todas' : catName);
+      renderContacts();
+    }
+
+    function showAllContacts() {
+      categorySelect.value = 'ALL';
+      currentCategory = 'ALL';
+      activeCategoryLabel.innerText = 'Exibindo Todos os Contatos';
       renderContacts();
     }
 
     function renderContacts() {
       const activeList = getActiveDataset();
       const query = searchInput.value.toLowerCase().trim();
-      const isQueryValid = query.length >= 3;
 
-      // Expandir busca com Sinônimos Inteligentes
-      let expandedKeywords = [query];
-      if (isQueryValid && SYNONYMS[query]) {
-        expandedKeywords = expandedKeywords.concat(SYNONYMS[query]);
-      }
-
-      // Regra: Se a busca tiver menos de 3 letras E nenhuma categoria específica estiver selecionada, não exibir os contatos!
-      if ((currentCategory === 'NONE' || currentCategory === 'ALL') && !isQueryValid && !onlyFavorites && minRatingFilter === 0) {
+      if (currentCategory === 'NONE' && !query && !onlyFavorites && minRatingFilter === 0) {
         visibleCount.innerText = 0;
-        activeCategoryLabel.innerText = 'Digite pelo menos 3 letras ou selecione uma categoria';
+        activeCategoryLabel.innerText = 'Selecione uma categoria ou pesquise acima';
         grid.innerHTML = \`
           <div class="col-12 text-center py-4">
             <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white">
@@ -1213,7 +842,7 @@ const htmlContent = `<!DOCTYPE html>
               </div>
               <h4 class="fw-bold text-dark mb-2">Qual serviço você procura hoje?</h4>
               <p class="text-muted mb-4 mx-auto" style="max-width: 550px;">
-                Digite pelo menos <b>3 letras</b> no campo de busca acima (ex: <i>eletricista, pedreiro, dentista, marmita, ar condicionado</i>) ou selecione uma categoria.
+                Selecione uma categoria no menu acima ou digite na barra de busca (ex: <i>eletricista, pedreiro, dentista, marmita, ar condicionado</i>).
               </p>
               <div class="d-flex justify-content-center flex-wrap gap-2 mb-3">
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Climatização & Refrigeração')">❄️ Climatização & Refrigeração</button>
@@ -1221,6 +850,11 @@ const htmlContent = `<!DOCTYPE html>
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Saúde & Médicos')">🩺 Saúde & Médicos</button>
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Gastronomia, Alimentos & Festas')">🍕 Gastronomia & Festas</button>
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Serviços Domésticos & Manutenção')">🧹 Serviços Domésticos</button>
+              </div>
+              <div>
+                <button class="btn btn-sm btn-link text-muted text-decoration-none" onclick="showAllContacts()">
+                  <i class="bi bi-grid-3x3-gap me-1"></i> Ver todos os \${activeList.length} contatos cadastrados
+                </button>
               </div>
             </div>
           </div>
@@ -1252,25 +886,15 @@ const htmlContent = `<!DOCTYPE html>
           if (userRating < minRatingFilter) continue;
         }
 
-        if (isQueryValid) {
-          const nameStr = (c.name || '').toString();
-          const orgStr = (c.org || '').toString();
-          const catStr = (c.category || '').toString();
-          const phoneStr = (c.phone_primary || '').toString();
-          const instaStr = (c.instagram || '').toString();
-          const descStr = (c.wa_description || '').toString();
-          const noteStr = (c.note || '').toString();
-
-          const matchText = (nameStr + ' ' + orgStr + ' ' + catStr + ' ' + phoneStr + ' ' + instaStr + ' ' + descStr + ' ' + noteStr).toLowerCase();
-          const matchesAny = expandedKeywords.some(kw => matchText.includes(kw));
-          if (!matchesAny) {
+        if (query) {
+          const matchText = (c.name + ' ' + c.org + ' ' + c.category + ' ' + c.phone_primary + ' ' + (c.instagram || '') + ' ' + c.wa_description + ' ' + c.note).toLowerCase();
+          if (!matchText.includes(query)) {
             continue;
           }
         }
 
         count++;
         const isFav = favorites.includes(c.filename);
-        const isVip = userRating === 5 || (c.wa_description && (c.wa_description.toLowerCase().includes('bem indicado') || c.wa_description.toLowerCase().includes('bom')));
 
         const col = document.createElement('div');
         col.className = 'col-12 col-md-6 col-lg-4';
@@ -1295,18 +919,10 @@ const htmlContent = `<!DOCTYPE html>
           \`;
         }
 
-        let shareButtonHtml = \`
-          <button class="btn-share" onclick="shareContactCard('\${escapeHtml(c.name)}', '\${escapeHtml(c.category)}', '\${escapeHtml(c.phone_primary)}', \${userRating}, '\${escapeHtml(c.instagram)}')" title="Compartilhar no WhatsApp">
-            <i class="bi bi-share-fill"></i> Compartilhar
-          </button>
-        \`;
-
-        let vipBadgeHtml = isVip ? \`<span class="badge bg-warning text-dark border border-warning-subtle rounded-pill small me-1"><i class="bi bi-trophy-fill me-1"></i>Recomendado</span>\` : '';
-
-        let orgHtml = c.org ? \`<div class="text-muted small mb-1"><i class="bi bi-building me-1"></i>\${highlightText(c.org, query)}</div>\` : '';
+        let orgHtml = c.org ? \`<div class="text-muted small mb-1"><i class="bi bi-building me-1"></i>\${escapeHtml(c.org)}</div>\` : '';
         let bizDescHtml = c.wa_description ? \`
           <div class="biz-desc mt-2">
-            <i class="bi bi-info-circle me-1"></i> \${highlightText(c.wa_description, query)}
+            <i class="bi bi-info-circle me-1"></i> \${escapeHtml(c.wa_description)}
           </div>
         \` : '';
 
@@ -1328,11 +944,8 @@ const htmlContent = `<!DOCTYPE html>
               <div class="d-flex align-items-center gap-2" style="min-width: 0;">
                 \${renderAvatar(c)}
                 <div class="text-truncate">
-                  <div class="d-flex align-items-center flex-wrap">
-                    \${vipBadgeHtml}
-                    <h6 class="fw-bold mb-0 text-dark text-truncate d-inline">\${highlightText(c.name, query)}</h6>
-                  </div>
-                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small mt-1" style="font-size: 0.75rem;">
+                  <h6 class="fw-bold mb-0 text-dark text-truncate">\${escapeHtml(c.name)}</h6>
+                  <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small" style="font-size: 0.75rem;">
                     \${escapeHtml(c.category)}
                   </span>
                 </div>
@@ -1361,7 +974,6 @@ const htmlContent = `<!DOCTYPE html>
             <div class="mt-auto pt-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div class="d-flex align-items-center gap-1">
                 \${instaButtonHtml}
-                \${shareButtonHtml}
               </div>
               \${waButtonHtml}
             </div>
@@ -1375,7 +987,7 @@ const htmlContent = `<!DOCTYPE html>
           <div class="col-12 text-center py-5 text-muted">
             <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
             <h5>Nenhum contato encontrado para a pesquisa/filtro.</h5>
-            <p>Tente buscar por termos mais genéricos (mínimo 3 letras) ou selecionar outra categoria.</p>
+            <p>Tente buscar por termos mais genéricos ou selecionar outra categoria.</p>
           </div>
         \`;
       }
@@ -1386,7 +998,7 @@ const htmlContent = `<!DOCTYPE html>
 
     function escapeHtml(str) {
       if (!str) return '';
-      return str.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
     async function setRating(filename, score) {
@@ -1397,6 +1009,7 @@ const htmlContent = `<!DOCTYPE html>
       }
       localStorage.setItem('ratings_contacts', JSON.stringify(ratings));
 
+      // Atualização imediata no Supabase Cloud DB
       if (supabaseClient) {
         try {
           await supabaseClient.from('contatos').update({ rating: score }).eq('filename', filename);
@@ -1412,10 +1025,10 @@ const htmlContent = `<!DOCTYPE html>
       const idx = favorites.indexOf(filename);
       if (idx > -1) {
         favorites.splice(idx, 1);
-        if (el) el.classList.remove('active');
+        el.classList.remove('active');
       } else {
         favorites.push(filename);
-        if (el) el.classList.add('active');
+        el.classList.add('active');
       }
       localStorage.setItem('fav_contacts', JSON.stringify(favorites));
       if (onlyFavorites) renderContacts();
@@ -1460,6 +1073,7 @@ const htmlContent = `<!DOCTYPE html>
               activeList.push(newC);
               newContactsAdded++;
 
+              // Atualizar no Supabase Cloud DB
               if (supabaseClient) {
                 await supabaseClient.from('contatos').upsert([{
                   filename: newC.filename,
@@ -1504,7 +1118,7 @@ const htmlContent = `<!DOCTYPE html>
     ];
 
     function getCategoryJS(text) {
-      const lower = (text || '').replace(/X-ABLabel:Celular/gi, '').replace(/TYPE=CELL/gi, '').toLowerCase();
+      const lower = text.replace(/X-ABLabel:Celular/gi, '').replace(/TYPE=CELL/gi, '').toLowerCase();
       for (const rule of categoryRulesJS) {
         if (rule.keywords.some(kw => lower.includes(kw))) {
           return rule.name;
@@ -1641,7 +1255,7 @@ const htmlContent = `<!DOCTYPE html>
 
     function openEditModal(filename) {
       if (!isAdmin) return;
-      const activeList = getActiveDatasetAll();
+      const activeList = getActiveDataset();
       const item = activeList.find(c => c.filename === filename);
       if (!item) return;
 
@@ -1698,8 +1312,7 @@ const htmlContent = `<!DOCTYPE html>
         wa_link: waLink,
         email: email,
         wa_description: desc,
-        rating: ratingVal,
-        status: 'APROVADO'
+        rating: ratingVal
       };
 
       if (id) {
@@ -1710,6 +1323,7 @@ const htmlContent = `<!DOCTYPE html>
         localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
       }
 
+      // Sincronização Direta no Supabase Cloud DB
       if (supabaseClient) {
         try {
           const { error } = await supabaseClient.from('contatos').upsert([{
@@ -1748,6 +1362,7 @@ const htmlContent = `<!DOCTYPE html>
         }
         localStorage.setItem('contacts_deleted', JSON.stringify(deletedIds));
 
+        // Exclusão no Supabase Cloud DB
         if (supabaseClient) {
           try {
             const { error } = await supabaseClient.from('contatos').delete().eq('filename', filename);
@@ -1772,14 +1387,11 @@ const htmlContent = `<!DOCTYPE html>
         localStorage.removeItem('contacts_edits');
         localStorage.removeItem('contacts_deleted');
         localStorage.removeItem('contacts_added');
-        localStorage.removeItem('pending_contacts');
         customEdits = {};
         deletedIds = [];
         addedContacts = [];
-        pendingContacts = [];
         currentCategory = 'NONE';
         categorySelect.value = 'NONE';
-        updatePendingBadge();
         renderContacts();
       }
     }
@@ -1838,23 +1450,15 @@ const htmlContent = `<!DOCTYPE html>
     categorySelect.addEventListener('change', (e) => {
       const val = e.target.value;
       currentCategory = val;
-      activeCategoryLabel.innerText = 'Categoria: ' + (val === 'NONE' ? 'Nenhuma' : val);
+      activeCategoryLabel.innerText = 'Categoria: ' + (val === 'ALL' ? 'Todas' : (val === 'NONE' ? 'Nenhuma' : val));
       renderContacts();
     });
 
-    // Search input handler - exige no mínimo 3 letras
+    // Search input handler
     searchInput.addEventListener('input', () => {
-      const query = searchInput.value.trim();
-      if (query.length >= 3) {
-        if (currentCategory === 'NONE') {
-          currentCategory = 'ALL';
-          categorySelect.value = 'ALL';
-        }
-        activeCategoryLabel.innerText = 'Busca: "' + query + '"';
-      } else if (query.length < 3 && currentCategory === 'ALL') {
-        currentCategory = 'NONE';
-        categorySelect.value = 'NONE';
-        activeCategoryLabel.innerText = 'Digite pelo menos 3 letras ou selecione uma categoria';
+      if (currentCategory === 'NONE' && searchInput.value.trim().length > 0) {
+        currentCategory = 'ALL';
+        categorySelect.value = 'ALL';
       }
       renderContacts();
     });
@@ -1863,12 +1467,32 @@ const htmlContent = `<!DOCTYPE html>
     minRatingSelect.addEventListener('change', (e) => {
       const val = e.target.value;
       minRatingFilter = (val === 'unrated' || val === 'insta') ? val : parseInt(val, 10);
+      if (minRatingFilter !== 0 && currentCategory === 'NONE') {
+        currentCategory = 'ALL';
+        categorySelect.value = 'ALL';
+      }
+      renderContacts();
+    });
+
+    // Favorites toggle handler
+    toggleFavsBtn.addEventListener('click', () => {
+      onlyFavorites = !onlyFavorites;
+      if (onlyFavorites) {
+        toggleFavsBtn.classList.remove('btn-outline-warning');
+        toggleFavsBtn.classList.add('btn-warning');
+        if (currentCategory === 'NONE') {
+          currentCategory = 'ALL';
+          categorySelect.value = 'ALL';
+        }
+      } else {
+        toggleFavsBtn.classList.remove('btn-warning');
+        toggleFavsBtn.classList.add('btn-outline-warning');
+      }
       renderContacts();
     });
 
     // Initial render
     applyAdminState();
-    updatePendingBadge();
     renderContacts();
   </script>
 </body>
@@ -1876,4 +1500,4 @@ const htmlContent = `<!DOCTYPE html>
 
 fs.writeFileSync(path.join(dir, 'catalogo_servicos.html'), htmlContent, 'utf8');
 fs.writeFileSync(path.join(dir, 'index.html'), htmlContent, 'utf8');
-console.log('build_html.js corrigido: busca por texto robusta contra nulos e 100% funcional!');
+console.log('build_html.js atualizado com sincronização total do Supabase em edição, exclusão e avaliação!');
