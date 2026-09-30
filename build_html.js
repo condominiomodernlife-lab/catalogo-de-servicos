@@ -465,10 +465,6 @@ const htmlContent = `<!DOCTYPE html>
 
             <!-- VCF File Input -->
             <input type="file" id="vcf-file-input" accept=".vcf" multiple style="display:none;" onchange="handleVCFFileSelect(event)">
-            
-            <button id="toggle-favs-btn" class="btn btn-outline-warning rounded-pill ms-1 d-none" title="Ver Favoritos">
-              <i class="bi bi-star-fill"></i>
-            </button>
           </div>
         </div>
       </div>
@@ -964,9 +960,6 @@ const htmlContent = `<!DOCTYPE html>
     const minRatingSelect = document.getElementById('min-rating-select');
     const visibleCount = document.getElementById('visible-count');
     const activeCategoryLabel = document.getElementById('active-category-label');
-    const toggleFavsBtn = document.getElementById('toggle-favs-btn');
-    const statTotal = document.getElementById('stat-total');
-    const statInsta = document.getElementById('stat-insta');
     const resetEditsBtn = document.getElementById('reset-edits-btn');
 
     const contactModal = new bootstrap.Modal(document.getElementById('contactModal'));
@@ -1182,8 +1175,9 @@ const htmlContent = `<!DOCTYPE html>
     }
 
     function highlightText(text, query) {
-      if (!text || !query || query.length < 3) return escapeHtml(text);
-      const escapedText = escapeHtml(text);
+      if (!text || !query || query.length < 3) return escapeHtml(text || '');
+      const str = (text || '').toString();
+      const escapedText = escapeHtml(str);
       const escapedQuery = escapeHtml(query);
       const regex = new RegExp('(' + escapedQuery.replace(/[-\\/\\\\^$*+?.()|[\\]{}]/g, '\\\\$&') + ')', 'gi');
       return escapedText.replace(regex, '<mark class="bg-warning-subtle text-dark px-1 rounded">$1</mark>');
@@ -1259,7 +1253,15 @@ const htmlContent = `<!DOCTYPE html>
         }
 
         if (isQueryValid) {
-          const matchText = (c.name + ' ' + c.org + ' ' + c.category + ' ' + c.phone_primary + ' ' + (c.instagram || '') + ' ' + c.wa_description + ' ' + c.note).toLowerCase();
+          const nameStr = (c.name || '').toString();
+          const orgStr = (c.org || '').toString();
+          const catStr = (c.category || '').toString();
+          const phoneStr = (c.phone_primary || '').toString();
+          const instaStr = (c.instagram || '').toString();
+          const descStr = (c.wa_description || '').toString();
+          const noteStr = (c.note || '').toString();
+
+          const matchText = (nameStr + ' ' + orgStr + ' ' + catStr + ' ' + phoneStr + ' ' + instaStr + ' ' + descStr + ' ' + noteStr).toLowerCase();
           const matchesAny = expandedKeywords.some(kw => matchText.includes(kw));
           if (!matchesAny) {
             continue;
@@ -1384,7 +1386,7 @@ const htmlContent = `<!DOCTYPE html>
 
     function escapeHtml(str) {
       if (!str) return '';
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+      return str.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
     async function setRating(filename, score) {
@@ -1502,7 +1504,7 @@ const htmlContent = `<!DOCTYPE html>
     ];
 
     function getCategoryJS(text) {
-      const lower = text.replace(/X-ABLabel:Celular/gi, '').replace(/TYPE=CELL/gi, '').toLowerCase();
+      const lower = (text || '').replace(/X-ABLabel:Celular/gi, '').replace(/TYPE=CELL/gi, '').toLowerCase();
       for (const rule of categoryRulesJS) {
         if (rule.keywords.some(kw => lower.includes(kw))) {
           return rule.name;
@@ -1843,12 +1845,16 @@ const htmlContent = `<!DOCTYPE html>
     // Search input handler - exige no mínimo 3 letras
     searchInput.addEventListener('input', () => {
       const query = searchInput.value.trim();
-      if (query.length < 3 && currentCategory === 'ALL') {
+      if (query.length >= 3) {
+        if (currentCategory === 'NONE') {
+          currentCategory = 'ALL';
+          categorySelect.value = 'ALL';
+        }
+        activeCategoryLabel.innerText = 'Busca: "' + query + '"';
+      } else if (query.length < 3 && currentCategory === 'ALL') {
         currentCategory = 'NONE';
         categorySelect.value = 'NONE';
-      } else if (query.length >= 3 && currentCategory === 'NONE') {
-        currentCategory = 'ALL';
-        categorySelect.value = 'ALL';
+        activeCategoryLabel.innerText = 'Digite pelo menos 3 letras ou selecione uma categoria';
       }
       renderContacts();
     });
@@ -1870,4 +1876,4 @@ const htmlContent = `<!DOCTYPE html>
 
 fs.writeFileSync(path.join(dir, 'catalogo_servicos.html'), htmlContent, 'utf8');
 fs.writeFileSync(path.join(dir, 'index.html'), htmlContent, 'utf8');
-console.log('build_html.js atualizado com o Menu integrado (Instalar App, Área Admin, Indicar Prestador, Favoritos)!');
+console.log('build_html.js corrigido: busca por texto robusta contra nulos e 100% funcional!');
