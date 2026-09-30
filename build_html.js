@@ -353,7 +353,7 @@ const htmlContent = `<!DOCTYPE html>
                 <i class="bi bi-search text-muted"></i>
               </span>
               <input type="text" id="search-input" class="form-control border-start-0 search-box rounded-end-pill" 
-                     placeholder="Buscar por serviço, nome, @insta...">
+                     placeholder="Buscar por serviço, nome, @insta (mínimo 3 letras)...">
             </div>
           </div>
 
@@ -421,7 +421,7 @@ const htmlContent = `<!DOCTYPE html>
     <div class="d-flex justify-content-between align-items-center mb-3 text-muted">
       <div><strong id="visible-count">0</strong> contatos exibidos</div>
       <div class="d-flex align-items-center gap-3">
-        <div id="active-category-label" class="fw-semibold text-primary">Selecione uma categoria ou pesquise acima</div>
+        <div id="active-category-label" class="fw-semibold text-primary">Digite pelo menos 3 letras ou selecione uma categoria</div>
         <button id="reset-edits-btn" class="btn btn-sm btn-link text-muted p-0 text-decoration-none admin-only" onclick="resetChanges()">
           <i class="bi bi-arrow-counterclockwise"></i> Restaurar originais
         </button>
@@ -822,11 +822,12 @@ const htmlContent = `<!DOCTYPE html>
     function renderContacts() {
       const activeList = getActiveDataset();
       const query = searchInput.value.toLowerCase().trim();
+      const isQueryValid = query.length >= 3;
 
-      // Regra: Se a busca estiver vazia E nenhuma categoria específica estiver selecionada (ou "NONE" / "ALL"), não exibir os contatos!
-      if ((currentCategory === 'NONE' || currentCategory === 'ALL') && !query && !onlyFavorites && minRatingFilter === 0) {
+      // Regra: Se a busca tiver menos de 3 letras E nenhuma categoria específica estiver selecionada, não exibir os contatos!
+      if ((currentCategory === 'NONE' || currentCategory === 'ALL') && !isQueryValid && !onlyFavorites && minRatingFilter === 0) {
         visibleCount.innerText = 0;
-        activeCategoryLabel.innerText = 'Selecione uma categoria ou pesquise acima';
+        activeCategoryLabel.innerText = 'Digite pelo menos 3 letras ou selecione uma categoria';
         grid.innerHTML = \`
           <div class="col-12 text-center py-4">
             <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white">
@@ -835,7 +836,7 @@ const htmlContent = `<!DOCTYPE html>
               </div>
               <h4 class="fw-bold text-dark mb-2">Qual serviço você procura hoje?</h4>
               <p class="text-muted mb-4 mx-auto" style="max-width: 550px;">
-                Selecione uma categoria no menu acima ou digite na barra de busca (ex: <i>eletricista, pedreiro, dentista, marmita, ar condicionado</i>).
+                Digite pelo menos <b>3 letras</b> no campo de busca acima (ex: <i>eletricista, pedreiro, dentista, marmita, ar condicionado</i>) ou selecione uma categoria.
               </p>
               <div class="d-flex justify-content-center flex-wrap gap-2 mb-3">
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Climatização & Refrigeração')">❄️ Climatização & Refrigeração</button>
@@ -874,7 +875,7 @@ const htmlContent = `<!DOCTYPE html>
           if (userRating < minRatingFilter) continue;
         }
 
-        if (query) {
+        if (isQueryValid) {
           const matchText = (c.name + ' ' + c.org + ' ' + c.category + ' ' + c.phone_primary + ' ' + (c.instagram || '') + ' ' + c.wa_description + ' ' + c.note).toLowerCase();
           if (!matchText.includes(query)) {
             continue;
@@ -975,7 +976,7 @@ const htmlContent = `<!DOCTYPE html>
           <div class="col-12 text-center py-5 text-muted">
             <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
             <h5>Nenhum contato encontrado para a pesquisa/filtro.</h5>
-            <p>Tente buscar por termos mais genéricos ou selecionar outra categoria.</p>
+            <p>Tente buscar por termos mais genéricos (mínimo 3 letras) ou selecionar outra categoria.</p>
           </div>
         \`;
       }
@@ -1438,12 +1439,15 @@ const htmlContent = `<!DOCTYPE html>
       renderContacts();
     });
 
-    // Search input handler
+    // Search input handler - exige no mínimo 3 letras
     searchInput.addEventListener('input', () => {
       const query = searchInput.value.trim();
-      if (!query && currentCategory === 'ALL') {
+      if (query.length < 3 && currentCategory === 'ALL') {
         currentCategory = 'NONE';
         categorySelect.value = 'NONE';
+      } else if (query.length >= 3 && currentCategory === 'NONE') {
+        currentCategory = 'ALL';
+        categorySelect.value = 'ALL';
       }
       renderContacts();
     });
@@ -1477,4 +1481,4 @@ const htmlContent = `<!DOCTYPE html>
 
 fs.writeFileSync(path.join(dir, 'catalogo_servicos.html'), htmlContent, 'utf8');
 fs.writeFileSync(path.join(dir, 'index.html'), htmlContent, 'utf8');
-console.log('build_html.js atualizado: busca vazia não exibe contatos!');
+console.log('build_html.js atualizado: busca ativada apenas com mínimo de 3 letras!');
