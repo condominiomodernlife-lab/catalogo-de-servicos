@@ -361,7 +361,6 @@ const htmlContent = `<!DOCTYPE html>
           <div class="col-lg-3 col-md-6">
             <select id="category-select" class="form-select rounded-pill">
               <option value="NONE" selected>📂 Selecione uma Categoria...</option>
-              <option value="ALL">📋 Todas as Categorias (${totalContacts})</option>
               ${sortedCategories.map(([cat, count]) => `
                 <option value="${cat.replace(/"/g, '&quot;')}">${categoryIcons[cat] || '🏷️'} ${cat} (${count})</option>
               `).join('')}
@@ -816,14 +815,7 @@ const htmlContent = `<!DOCTYPE html>
     function selectCategoryByName(catName) {
       categorySelect.value = catName;
       currentCategory = catName;
-      activeCategoryLabel.innerText = 'Categoria: ' + (catName === 'ALL' ? 'Todas' : catName);
-      renderContacts();
-    }
-
-    function showAllContacts() {
-      categorySelect.value = 'ALL';
-      currentCategory = 'ALL';
-      activeCategoryLabel.innerText = 'Exibindo Todos os Contatos';
+      activeCategoryLabel.innerText = 'Categoria: ' + catName;
       renderContacts();
     }
 
@@ -831,7 +823,8 @@ const htmlContent = `<!DOCTYPE html>
       const activeList = getActiveDataset();
       const query = searchInput.value.toLowerCase().trim();
 
-      if (currentCategory === 'NONE' && !query && !onlyFavorites && minRatingFilter === 0) {
+      // Regra: Se a busca estiver vazia E nenhuma categoria específica estiver selecionada (ou "NONE" / "ALL"), não exibir os contatos!
+      if ((currentCategory === 'NONE' || currentCategory === 'ALL') && !query && !onlyFavorites && minRatingFilter === 0) {
         visibleCount.innerText = 0;
         activeCategoryLabel.innerText = 'Selecione uma categoria ou pesquise acima';
         grid.innerHTML = \`
@@ -850,11 +843,6 @@ const htmlContent = `<!DOCTYPE html>
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Saúde & Médicos')">🩺 Saúde & Médicos</button>
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Gastronomia, Alimentos & Festas')">🍕 Gastronomia & Festas</button>
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Serviços Domésticos & Manutenção')">🧹 Serviços Domésticos</button>
-              </div>
-              <div>
-                <button class="btn btn-sm btn-link text-muted text-decoration-none" onclick="showAllContacts()">
-                  <i class="bi bi-grid-3x3-gap me-1"></i> Ver todos os \${activeList.length} contatos cadastrados
-                </button>
               </div>
             </div>
           </div>
@@ -1009,7 +997,6 @@ const htmlContent = `<!DOCTYPE html>
       }
       localStorage.setItem('ratings_contacts', JSON.stringify(ratings));
 
-      // Atualização imediata no Supabase Cloud DB
       if (supabaseClient) {
         try {
           await supabaseClient.from('contatos').update({ rating: score }).eq('filename', filename);
@@ -1073,7 +1060,6 @@ const htmlContent = `<!DOCTYPE html>
               activeList.push(newC);
               newContactsAdded++;
 
-              // Atualizar no Supabase Cloud DB
               if (supabaseClient) {
                 await supabaseClient.from('contatos').upsert([{
                   filename: newC.filename,
@@ -1323,7 +1309,6 @@ const htmlContent = `<!DOCTYPE html>
         localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
       }
 
-      // Sincronização Direta no Supabase Cloud DB
       if (supabaseClient) {
         try {
           const { error } = await supabaseClient.from('contatos').upsert([{
@@ -1362,7 +1347,6 @@ const htmlContent = `<!DOCTYPE html>
         }
         localStorage.setItem('contacts_deleted', JSON.stringify(deletedIds));
 
-        // Exclusão no Supabase Cloud DB
         if (supabaseClient) {
           try {
             const { error } = await supabaseClient.from('contatos').delete().eq('filename', filename);
@@ -1450,15 +1434,16 @@ const htmlContent = `<!DOCTYPE html>
     categorySelect.addEventListener('change', (e) => {
       const val = e.target.value;
       currentCategory = val;
-      activeCategoryLabel.innerText = 'Categoria: ' + (val === 'ALL' ? 'Todas' : (val === 'NONE' ? 'Nenhuma' : val));
+      activeCategoryLabel.innerText = 'Categoria: ' + (val === 'NONE' ? 'Nenhuma' : val);
       renderContacts();
     });
 
     // Search input handler
     searchInput.addEventListener('input', () => {
-      if (currentCategory === 'NONE' && searchInput.value.trim().length > 0) {
-        currentCategory = 'ALL';
-        categorySelect.value = 'ALL';
+      const query = searchInput.value.trim();
+      if (!query && currentCategory === 'ALL') {
+        currentCategory = 'NONE';
+        categorySelect.value = 'NONE';
       }
       renderContacts();
     });
@@ -1467,10 +1452,6 @@ const htmlContent = `<!DOCTYPE html>
     minRatingSelect.addEventListener('change', (e) => {
       const val = e.target.value;
       minRatingFilter = (val === 'unrated' || val === 'insta') ? val : parseInt(val, 10);
-      if (minRatingFilter !== 0 && currentCategory === 'NONE') {
-        currentCategory = 'ALL';
-        categorySelect.value = 'ALL';
-      }
       renderContacts();
     });
 
@@ -1480,10 +1461,6 @@ const htmlContent = `<!DOCTYPE html>
       if (onlyFavorites) {
         toggleFavsBtn.classList.remove('btn-outline-warning');
         toggleFavsBtn.classList.add('btn-warning');
-        if (currentCategory === 'NONE') {
-          currentCategory = 'ALL';
-          categorySelect.value = 'ALL';
-        }
       } else {
         toggleFavsBtn.classList.remove('btn-warning');
         toggleFavsBtn.classList.add('btn-outline-warning');
@@ -1500,4 +1477,4 @@ const htmlContent = `<!DOCTYPE html>
 
 fs.writeFileSync(path.join(dir, 'catalogo_servicos.html'), htmlContent, 'utf8');
 fs.writeFileSync(path.join(dir, 'index.html'), htmlContent, 'utf8');
-console.log('build_html.js atualizado com sincronização total do Supabase em edição, exclusão e avaliação!');
+console.log('build_html.js atualizado: busca vazia não exibe contatos!');
