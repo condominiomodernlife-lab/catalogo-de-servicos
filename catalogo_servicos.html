@@ -318,7 +318,7 @@
                 <i class="bi bi-search text-muted"></i>
               </span>
               <input type="text" id="search-input" class="form-control border-start-0 search-box rounded-end-pill" 
-                     placeholder="Buscar por serviço, nome, @insta...">
+                     placeholder="Buscar por serviço, nome, @insta (mínimo 3 letras)...">
             </div>
           </div>
 
@@ -409,7 +409,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3 text-muted">
       <div><strong id="visible-count">0</strong> contatos exibidos</div>
       <div class="d-flex align-items-center gap-3">
-        <div id="active-category-label" class="fw-semibold text-primary">Selecione uma categoria ou pesquise acima</div>
+        <div id="active-category-label" class="fw-semibold text-primary">Digite pelo menos 3 letras ou selecione uma categoria</div>
         <button id="reset-edits-btn" class="btn btn-sm btn-link text-muted p-0 text-decoration-none admin-only" onclick="resetChanges()">
           <i class="bi bi-arrow-counterclockwise"></i> Restaurar originais
         </button>
@@ -803,24 +803,19 @@
     function selectCategoryByName(catName) {
       categorySelect.value = catName;
       currentCategory = catName;
-      activeCategoryLabel.innerText = 'Categoria: ' + (catName === 'ALL' ? 'Todas' : catName);
-      renderContacts();
-    }
-
-    function showAllContacts() {
-      categorySelect.value = 'ALL';
-      currentCategory = 'ALL';
-      activeCategoryLabel.innerText = 'Exibindo Todos os Contatos';
+      activeCategoryLabel.innerText = 'Categoria: ' + catName;
       renderContacts();
     }
 
     function renderContacts() {
       const activeList = getActiveDataset();
       const query = searchInput.value.toLowerCase().trim();
+      const isQueryValid = query.length >= 3;
 
-      if (currentCategory === 'NONE' && !query && !onlyFavorites && minRatingFilter === 0) {
+      // Regra: Se a busca tiver menos de 3 letras E nenhuma categoria específica estiver selecionada, não exibir os contatos!
+      if ((currentCategory === 'NONE' || currentCategory === 'ALL') && !isQueryValid && !onlyFavorites && minRatingFilter === 0) {
         visibleCount.innerText = 0;
-        activeCategoryLabel.innerText = 'Selecione uma categoria ou pesquise acima';
+        activeCategoryLabel.innerText = 'Digite pelo menos 3 letras ou selecione uma categoria';
         grid.innerHTML = `
           <div class="col-12 text-center py-4">
             <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white">
@@ -829,7 +824,7 @@
               </div>
               <h4 class="fw-bold text-dark mb-2">Qual serviço você procura hoje?</h4>
               <p class="text-muted mb-4 mx-auto" style="max-width: 550px;">
-                Selecione uma categoria no menu acima ou digite na barra de busca (ex: <i>eletricista, pedreiro, dentista, marmita, ar condicionado</i>).
+                Digite pelo menos <b>3 letras</b> no campo de busca acima (ex: <i>eletricista, pedreiro, dentista, marmita, ar condicionado</i>) ou selecione uma categoria.
               </p>
               <div class="d-flex justify-content-center flex-wrap gap-2 mb-3">
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Climatização & Refrigeração')">❄️ Climatização & Refrigeração</button>
@@ -837,11 +832,6 @@
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Saúde & Médicos')">🩺 Saúde & Médicos</button>
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Gastronomia, Alimentos & Festas')">🍕 Gastronomia & Festas</button>
                 <button class="btn btn-outline-primary rounded-pill px-3 py-2" onclick="selectCategoryByName('Serviços Domésticos & Manutenção')">🧹 Serviços Domésticos</button>
-              </div>
-              <div>
-                <button class="btn btn-sm btn-link text-muted text-decoration-none" onclick="showAllContacts()">
-                  <i class="bi bi-grid-3x3-gap me-1"></i> Ver todos os ${activeList.length} contatos cadastrados
-                </button>
               </div>
             </div>
           </div>
@@ -873,7 +863,7 @@
           if (userRating < minRatingFilter) continue;
         }
 
-        if (query) {
+        if (isQueryValid) {
           const matchText = (c.name + ' ' + c.org + ' ' + c.category + ' ' + c.phone_primary + ' ' + (c.instagram || '') + ' ' + c.wa_description + ' ' + c.note).toLowerCase();
           if (!matchText.includes(query)) {
             continue;
@@ -974,7 +964,7 @@
           <div class="col-12 text-center py-5 text-muted">
             <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
             <h5>Nenhum contato encontrado para a pesquisa/filtro.</h5>
-            <p>Tente buscar por termos mais genéricos ou selecionar outra categoria.</p>
+            <p>Tente buscar por termos mais genéricos (mínimo 3 letras) ou selecionar outra categoria.</p>
           </div>
         `;
       }
@@ -996,7 +986,6 @@
       }
       localStorage.setItem('ratings_contacts', JSON.stringify(ratings));
 
-      // Atualização imediata no Supabase Cloud DB
       if (supabaseClient) {
         try {
           await supabaseClient.from('contatos').update({ rating: score }).eq('filename', filename);
@@ -1060,7 +1049,6 @@
               activeList.push(newC);
               newContactsAdded++;
 
-              // Atualizar no Supabase Cloud DB
               if (supabaseClient) {
                 await supabaseClient.from('contatos').upsert([{
                   filename: newC.filename,
@@ -1310,7 +1298,6 @@
         localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
       }
 
-      // Sincronização Direta no Supabase Cloud DB
       if (supabaseClient) {
         try {
           const { error } = await supabaseClient.from('contatos').upsert([{
@@ -1349,7 +1336,6 @@
         }
         localStorage.setItem('contacts_deleted', JSON.stringify(deletedIds));
 
-        // Exclusão no Supabase Cloud DB
         if (supabaseClient) {
           try {
             const { error } = await supabaseClient.from('contatos').delete().eq('filename', filename);
@@ -1437,13 +1423,17 @@
     categorySelect.addEventListener('change', (e) => {
       const val = e.target.value;
       currentCategory = val;
-      activeCategoryLabel.innerText = 'Categoria: ' + (val === 'ALL' ? 'Todas' : (val === 'NONE' ? 'Nenhuma' : val));
+      activeCategoryLabel.innerText = 'Categoria: ' + (val === 'NONE' ? 'Nenhuma' : val);
       renderContacts();
     });
 
-    // Search input handler
+    // Search input handler - exige no mínimo 3 letras
     searchInput.addEventListener('input', () => {
-      if (currentCategory === 'NONE' && searchInput.value.trim().length > 0) {
+      const query = searchInput.value.trim();
+      if (query.length < 3 && currentCategory === 'ALL') {
+        currentCategory = 'NONE';
+        categorySelect.value = 'NONE';
+      } else if (query.length >= 3 && currentCategory === 'NONE') {
         currentCategory = 'ALL';
         categorySelect.value = 'ALL';
       }
@@ -1454,10 +1444,6 @@
     minRatingSelect.addEventListener('change', (e) => {
       const val = e.target.value;
       minRatingFilter = (val === 'unrated' || val === 'insta') ? val : parseInt(val, 10);
-      if (minRatingFilter !== 0 && currentCategory === 'NONE') {
-        currentCategory = 'ALL';
-        categorySelect.value = 'ALL';
-      }
       renderContacts();
     });
 
@@ -1467,10 +1453,6 @@
       if (onlyFavorites) {
         toggleFavsBtn.classList.remove('btn-outline-warning');
         toggleFavsBtn.classList.add('btn-warning');
-        if (currentCategory === 'NONE') {
-          currentCategory = 'ALL';
-          categorySelect.value = 'ALL';
-        }
       } else {
         toggleFavsBtn.classList.remove('btn-warning');
         toggleFavsBtn.classList.add('btn-outline-warning');
