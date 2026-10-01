@@ -774,10 +774,11 @@ const htmlContent = `<!DOCTYPE html>
       return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
     }
 
-    function handleAvatarError(imgEl, initials) {
+    function handleAvatarError(imgEl) {
       imgEl.onerror = null;
       const ring = imgEl.closest('.insta-ring');
       if (ring) {
+        const initials = imgEl.getAttribute('data-initials') || '?';
         ring.outerHTML = '<div class="avatar-circle-fallback">' + initials + '</div>';
       }
     }
@@ -791,7 +792,8 @@ const htmlContent = `<!DOCTYPE html>
           <div class="avatar-wrapper">
             <div class="insta-ring">
               <img src="\${imgUrl}" class="avatar-img" alt="" 
-                   onerror="handleAvatarError(this, '\${initials}')">
+                   data-initials="\${initials}"
+                   onerror="handleAvatarError(this)">
             </div>
             <div class="insta-badge-icon"><i class="bi bi-instagram"></i></div>
           </div>
@@ -806,9 +808,10 @@ const htmlContent = `<!DOCTYPE html>
 
     function renderStarRating(filename, currentScore) {
       let starsHtml = '';
+      const escFile = escapeHtml(filename);
       for (let star = 1; star <= 5; star++) {
         const iconClass = star <= currentScore ? 'bi-star-fill' : 'bi-star';
-        starsHtml += \`<i class="bi \${iconClass}" onclick="setRating('\${escapeHtml(filename)}', \${star})" title="\${star} estrela(s)"></i>\`;
+        starsHtml += \`<i class="bi \${iconClass}" data-filename="\${escFile}" data-star="\${star}" onclick="setRating(this)" title="\${star} estrela(s)"></i>\`;
       }
       return \`<div class="star-rating d-inline-block">\${starsHtml}</div>\`;
     }
@@ -919,10 +922,10 @@ const htmlContent = `<!DOCTYPE html>
         let adminButtonsHtml = '';
         if (isAdmin) {
           adminButtonsHtml = \`
-            <button class="action-btn" onclick="openEditModal('\${escapeHtml(c.filename)}')" title="Editar Contato">
+            <button class="action-btn" data-filename="\${escapeHtml(c.filename)}" onclick="openEditModal(this)" title="Editar Contato">
               <i class="bi bi-pencil-square"></i>
             </button>
-            <button class="action-btn action-btn-danger" onclick="deleteContact('\${escapeHtml(c.filename)}', '\${escapeHtml(c.name)}')" title="Excluir Contato Permanentemente">
+            <button class="action-btn action-btn-danger" data-filename="\${escapeHtml(c.filename)}" data-name="\${escapeHtml(c.name)}" onclick="deleteContact(this)" title="Excluir Contato Permanentemente">
               <i class="bi bi-trash"></i>
             </button>
           \`;
@@ -941,7 +944,7 @@ const htmlContent = `<!DOCTYPE html>
                 </div>
               </div>
               <div class="d-flex align-items-center gap-1 ms-2 flex-shrink-0">
-                <i class="bi bi-star-fill fav-star me-1 \${isFav ? 'active' : ''}" onclick="toggleFav('\${escapeHtml(c.filename)}', this)" title="Favorito"></i>
+                <i class="bi bi-star-fill fav-star me-1 \${isFav ? 'active' : ''}" data-filename="\${escapeHtml(c.filename)}" onclick="toggleFav(this)" title="Favorito"></i>
                 \${adminButtonsHtml}
               </div>
             </div>
@@ -991,7 +994,15 @@ const htmlContent = `<!DOCTYPE html>
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 
-    async function setRating(filename, score) {
+    async function setRating(elOrFilename, scoreVal) {
+      let filename, score;
+      if (typeof elOrFilename === 'string') {
+        filename = elOrFilename;
+        score = scoreVal;
+      } else {
+        filename = elOrFilename.getAttribute('data-filename');
+        score = parseInt(elOrFilename.getAttribute('data-star'), 10);
+      }
       if (ratings[filename] === score) {
         delete ratings[filename];
       } else {
@@ -1010,17 +1021,25 @@ const htmlContent = `<!DOCTYPE html>
       renderContacts();
     }
 
-    function toggleFav(filename, el) {
+    function toggleFav(elOrFilename, elementIfString) {
+      let filename, el;
+      if (typeof elOrFilename === 'string') {
+        filename = elOrFilename;
+        el = elementIfString;
+      } else {
+        el = elOrFilename;
+        filename = el.getAttribute('data-filename');
+      }
       const idx = favorites.indexOf(filename);
       if (idx > -1) {
         favorites.splice(idx, 1);
-        el.classList.remove('active');
+        if (el) el.classList.remove('active');
       } else {
         favorites.push(filename);
-        el.classList.add('active');
+        if (el) el.classList.add('active');
       }
       localStorage.setItem('fav_contacts', JSON.stringify(favorites));
-      if (onlyFavorites) renderContacts();
+      renderContacts();
     }
 
     // VCF Browser Importer Logic
@@ -1241,8 +1260,9 @@ const htmlContent = `<!DOCTYPE html>
       contactModal.show();
     }
 
-    function openEditModal(filename) {
+    function openEditModal(btnOrFilename) {
       if (!isAdmin) return;
+      const filename = typeof btnOrFilename === 'string' ? btnOrFilename : btnOrFilename.getAttribute('data-filename');
       const activeList = getActiveDataset();
       const item = activeList.find(c => c.filename === filename);
       if (!item) return;
@@ -1341,8 +1361,16 @@ const htmlContent = `<!DOCTYPE html>
       renderContacts();
     }
 
-    async function deleteContact(filename, name) {
+    async function deleteContact(btnOrFilename, nameVal) {
       if (!isAdmin) return;
+      let filename, name;
+      if (typeof btnOrFilename === 'string') {
+        filename = btnOrFilename;
+        name = nameVal;
+      } else {
+        filename = btnOrFilename.getAttribute('data-filename');
+        name = btnOrFilename.getAttribute('data-name');
+      }
       if (confirm('Tem certeza que deseja EXCLUIR PERMANENTEMENTE o contato "' + name + '"?\\n\\nEle será excluído do banco de dados na nuvem e de todos os dispositivos.')) {
         if (!deletedIds.includes(filename)) {
           deletedIds.push(filename);
