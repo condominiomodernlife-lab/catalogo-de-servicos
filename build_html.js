@@ -496,7 +496,7 @@ const htmlContent = `<!DOCTYPE html>
   </div>
 
   <!-- Modal Instruções de Instalação PWA iOS/Android -->
-  <div class="modal fade" id="pwaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal fade" id="pwaModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header border-bottom-0 pb-0">
@@ -536,7 +536,7 @@ const htmlContent = `<!DOCTYPE html>
   </div>
 
   <!-- Modal para Editar/Adicionar Contato (Admin Only) -->
-  <div class="modal fade" id="contactModal" tabindex="-1" aria-hidden="true">
+  <div class="modal fade" id="contactModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header border-bottom-0 pb-0">
@@ -606,7 +606,7 @@ const htmlContent = `<!DOCTYPE html>
   </div>
 
   <!-- Modal Formulário Público "Cadastre Seu Serviço" -->
-  <div class="modal fade" id="publicRegisterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal fade" id="publicRegisterModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header border-bottom-0 pb-0">
@@ -669,7 +669,7 @@ const htmlContent = `<!DOCTYPE html>
   </div>
 
   <!-- Modal Cadastros Pendentes de Aprovação (Admin Only) -->
-  <div class="modal fade" id="pendingModal" tabindex="-1" aria-hidden="true">
+  <div class="modal fade" id="pendingModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content rounded-4 border-0 shadow">
         <div class="modal-header border-bottom-0 pb-0">
@@ -818,9 +818,9 @@ const htmlContent = `<!DOCTYPE html>
           method: 'GET',
           headers: { 'apikey': SUPABASE_ANON_KEY },
           signal: controller.signal
-        });
+        }).catch(() => null);
         clearTimeout(timer);
-        if (!resp.ok && resp.status !== 200 && resp.status !== 404 && resp.status !== 401) {
+        if (!resp || (!resp.ok && resp.status !== 200 && resp.status !== 404 && resp.status !== 401)) {
           throw new Error('Supabase network blocked');
         }
         return true;
