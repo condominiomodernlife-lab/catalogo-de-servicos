@@ -715,30 +715,66 @@ const htmlContent = `<!DOCTYPE html>
     const publicRegisterModal = new bootstrap.Modal(document.getElementById('publicRegisterModal'));
     const pendingModal = new bootstrap.Modal(document.getElementById('pendingModal'));
 
-    // Carregamento Supabase em Tempo Real
-    async function loadSupabaseData() {
-      if (!supabaseClient) return;
-      try {
-        const { data, error } = await supabaseClient.from('contatos').select('*');
-        if (!error && data && data.length > 0) {
-          supabaseContacts = data;
-          document.getElementById('db-status').innerHTML = '<i class="bi bi-wifi me-1"></i> Supabase Online (' + data.length + ')';
-          renderContacts();
-        }
-      } catch (err) {
-        console.log('Supabase read info:', err);
+    let realtimeChannel = null;
+    let isSupabaseDisabled = false;
+
+    function showOfflineStatus() {
+      const dbStatus = document.getElementById('db-status');
+      if (dbStatus) {
+        dbStatus.className = 'badge bg-secondary-subtle text-secondary border border-secondary-subtle db-status-badge';
+        dbStatus.innerHTML = '<i class="bi bi-wifi-off me-1"></i> Modo Offline (Local)';
       }
     }
 
-    // Iniciar escuta de alterações Realtime
-    if (supabaseClient) {
+    // Carregamento Supabase em Tempo Real
+    async function loadSupabaseData() {
+      if (!supabaseClient || isSupabaseDisabled) return;
+      try {
+        const { data, error } = await supabaseClient.from('contatos').select('*');
+        if (error) {
+          showOfflineStatus();
+          return;
+        }
+        if (data && data.length > 0) {
+          supabaseContacts = data;
+          const dbStatus = document.getElementById('db-status');
+          if (dbStatus) {
+            dbStatus.className = 'badge bg-success-subtle text-success border border-success-subtle db-status-badge';
+            dbStatus.innerHTML = '<i class="bi bi-wifi me-1"></i> Supabase Online (' + data.length + ')';
+          }
+          renderContacts();
+        }
+      } catch (err) {
+        showOfflineStatus();
+        isSupabaseDisabled = true;
+      }
+    }
+
+    // Iniciar escuta de alterações Realtime com failover gracioso
+    function initSupabaseRealtime() {
+      if (!supabaseClient || isSupabaseDisabled) return;
       loadSupabaseData();
-      supabaseClient.channel('realtime-contatos')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'contatos' }, () => {
-          console.log('Alteração Realtime vinda do Supabase!');
-          loadSupabaseData();
-        })
-        .subscribe();
+      try {
+        realtimeChannel = supabaseClient.channel('realtime-contatos')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'contatos' }, () => {
+            loadSupabaseData();
+          })
+          .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              showOfflineStatus();
+              if (realtimeChannel && supabaseClient) {
+                try { supabaseClient.removeChannel(realtimeChannel); } catch(e) {}
+                realtimeChannel = null;
+              }
+            }
+          });
+      } catch (e) {
+        showOfflineStatus();
+      }
+    }
+
+    if (supabaseClient) {
+      initSupabaseRealtime();
     }
 
     // Sincronizar todos os contatos no Supabase (Botão no Admin Bar)
@@ -1543,17 +1579,10 @@ const htmlContent = `<!DOCTYPE html>
       pendingContacts.push(pendingObj);
       localStorage.setItem('contacts_pending', JSON.stringify(pendingContacts));
 
-      if (supabaseClient) {
+      if (supabaseClient && !isSupabaseDisabled) {
         try {
-          const { error } = await supabaseClient.from('contatos_pendentes').upsert([pendingObj], { onConflict: 'filename' });
-          if (error) {
-            console.log('Inserção Supabase contatos_pendentes fallback:', error);
-          } else {
-            console.log('Cadastro pendente enviado ao Supabase com sucesso!');
-          }
-        } catch(e) {
-          console.error('Erro de rede ao enviar pendente Supabase:', e);
-        }
+          await supabaseClient.from('contatos_pendentes').upsert([pendingObj], { onConflict: 'filename' });
+        } catch(e) {}
       }
 
       publicRegisterModal.hide();
@@ -1563,15 +1592,15 @@ const htmlContent = `<!DOCTYPE html>
 
     async function loadPendingContacts() {
       pendingContacts = JSON.parse(localStorage.getItem('contacts_pending') || '[]');
-      if (supabaseClient) {
+      if (supabaseClient && !isSupabaseDisabled) {
         try {
           const { data, error } = await supabaseClient.from('contatos_pendentes').select('*');
-          if (!error && data && data.length > 0) {
+          if (!error && data && Array.isArray(data)) {
             pendingContacts = data;
             localStorage.setItem('contacts_pending', JSON.stringify(pendingContacts));
           }
         } catch(e) {
-          console.log('Supabase load pending info:', e);
+          // Quiet local fallback
         }
       }
 
@@ -1677,7 +1706,7 @@ const htmlContent = `<!DOCTYPE html>
       addedContacts.push(approvedObj);
       localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
 
-      if (supabaseClient) {
+      if (supabaseClient && !isSupabaseDisabled) {
         try {
           await supabaseClient.from('contatos').upsert([{
             filename: approvedObj.filename,
@@ -1693,10 +1722,7 @@ const htmlContent = `<!DOCTYPE html>
           }], { onConflict: 'filename' });
 
           await supabaseClient.from('contatos_pendentes').delete().eq('filename', filename);
-          console.log('Aprovado e movido no Supabase:', filename);
-        } catch(e) {
-          console.error('Erro ao aprovar no Supabase:', e);
-        }
+        } catch(e) {}
       }
 
       alert('✅ O cadastro de "' + approvedObj.name + '" foi APROVADO com sucesso e adicionado ao catálogo!');
@@ -1721,12 +1747,10 @@ const htmlContent = `<!DOCTYPE html>
       pendingContacts = pendingContacts.filter(c => c.filename !== filename);
       localStorage.setItem('contacts_pending', JSON.stringify(pendingContacts));
 
-      if (supabaseClient) {
+      if (supabaseClient && !isSupabaseDisabled) {
         try {
           await supabaseClient.from('contatos_pendentes').delete().eq('filename', filename);
-        } catch(e) {
-          console.error('Erro ao rejeitar no Supabase:', e);
-        }
+        } catch(e) {}
       }
 
       loadPendingContacts();
