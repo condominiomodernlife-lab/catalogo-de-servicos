@@ -646,7 +646,12 @@ const htmlContent = `<!DOCTYPE html>
     // Configuração Supabase Realtime
     const SUPABASE_URL = 'https://ioakxfrwgykxkgnrzxqz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvYWt4ZnJ3Z3lreGtnbnJ6eHF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTY5NjEsImV4cCI6MjEwMzkzMjk2MX0.pWL-sJa1ueuKCVaP5EfFLvghbeI3YM-PZ5o2fGSC-RM';
-    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+    const supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function') 
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          realtime: { timeout: 4000 }
+        }) 
+      : null;
     let supabaseContacts = null;
 
     // Register PWA Service Worker
@@ -750,9 +755,38 @@ const htmlContent = `<!DOCTYPE html>
       }
     }
 
+    async function checkSupabaseConnectivity() {
+      if (!supabaseClient) {
+        isSupabaseDisabled = true;
+        showOfflineStatus();
+        return false;
+      }
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 2000);
+        const resp = await fetch(SUPABASE_URL + '/rest/v1/?apikey=' + SUPABASE_ANON_KEY, {
+          method: 'GET',
+          headers: { 'apikey': SUPABASE_ANON_KEY },
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        if (!resp.ok && resp.status !== 200 && resp.status !== 404 && resp.status !== 401) {
+          throw new Error('Supabase network blocked');
+        }
+        return true;
+      } catch (err) {
+        isSupabaseDisabled = true;
+        showOfflineStatus();
+        return false;
+      }
+    }
+
     // Iniciar escuta de alterações Realtime com failover gracioso
-    function initSupabaseRealtime() {
+    async function initSupabaseRealtime() {
       if (!supabaseClient || isSupabaseDisabled) return;
+      const isOnline = await checkSupabaseConnectivity();
+      if (!isOnline) return;
+
       loadSupabaseData();
       try {
         realtimeChannel = supabaseClient.channel('realtime-contatos')
@@ -760,8 +794,9 @@ const htmlContent = `<!DOCTYPE html>
             loadSupabaseData();
           })
           .subscribe((status) => {
-            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
               showOfflineStatus();
+              isSupabaseDisabled = true;
               if (realtimeChannel && supabaseClient) {
                 try { supabaseClient.removeChannel(realtimeChannel); } catch(e) {}
                 realtimeChannel = null;
@@ -770,6 +805,7 @@ const htmlContent = `<!DOCTYPE html>
           });
       } catch (e) {
         showOfflineStatus();
+        isSupabaseDisabled = true;
       }
     }
 
