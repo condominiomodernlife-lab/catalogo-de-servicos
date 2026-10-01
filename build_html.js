@@ -382,6 +382,11 @@ const htmlContent = `<!DOCTYPE html>
 
           <!-- Admin & Action Buttons -->
           <div class="col-lg-4 col-md-12 text-lg-end text-center">
+            <!-- Botão Público "+ Indicar Prestador / Cadastrar Serviço" -->
+            <button class="btn btn-outline-success rounded-pill me-1 fw-semibold" onclick="openPublicRegisterModal()">
+              <i class="bi bi-plus-circle me-1"></i> + Indicar Prestador
+            </button>
+
             <!-- PWA Install Button -->
             <button id="pwa-install-btn" class="btn btn-warning rounded-pill me-1 text-dark fw-semibold" onclick="promptInstallPWA()">
               <i class="bi bi-phone-vibrate me-1"></i> Instalar App
@@ -389,6 +394,11 @@ const htmlContent = `<!DOCTYPE html>
 
             <button id="admin-login-btn" class="btn btn-outline-secondary rounded-pill me-1" onclick="promptAdminLogin()">
               <i class="bi bi-lock me-1"></i> Admin
+            </button>
+
+            <!-- Admin Only: Badge Cadastros Pendentes -->
+            <button id="pending-badge-btn" class="btn btn-danger rounded-pill me-1 admin-only" style="display:none;" onclick="openPendingModal()">
+              <i class="bi bi-clock-history me-1"></i> Pendentes (<span id="pending-count">0</span>)
             </button>
 
             <button class="btn btn-success rounded-pill me-1 admin-only" onclick="triggerVcfUpload()">
@@ -545,6 +555,90 @@ const htmlContent = `<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Modal Formulário Público "Cadastre Seu Serviço" -->
+  <div class="modal fade" id="publicRegisterModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom-0 pb-0">
+          <h5 class="modal-title fw-bold"><i class="bi bi-person-plus text-success me-2"></i>Cadastre Seu Serviço</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            É prestador de serviço ou deseja indicar um profissional? Preencha os dados abaixo. 
+            O cadastro ficará em estado <strong>Pendente</strong> aguardando a aprovação do administrador para ser publicado no catálogo.
+          </p>
+          <form id="publicRegisterForm">
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">Nome Completo / Prestador *</label>
+              <input type="text" id="reg-name" class="form-control rounded-3" required placeholder="Ex: João Eletricista">
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold small">Empresa / Negócio</label>
+                <input type="text" id="reg-org" class="form-control rounded-3" placeholder="Ex: EletroVix Ltda">
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold small">Categoria *</label>
+                <select id="reg-category" class="form-select rounded-3" required>
+                  ${sortedCategories.map(([c]) => `<option value="${c.replace(/"/g, '&quot;')}">${categoryIcons[c] || '🏷️'} ${c}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold small">Instagram (@perfil)</label>
+                <div class="input-group">
+                  <span class="input-group-text bg-light text-danger"><i class="bi bi-instagram"></i></span>
+                  <input type="text" id="reg-insta" class="form-control rounded-end-3" placeholder="Ex: @nomedoperfil">
+                </div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold small">Telefone / WhatsApp *</label>
+                <input type="text" id="reg-phone" class="form-control rounded-3" required placeholder="Ex: (27) 99999-8888">
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">E-mail</label>
+              <input type="email" id="reg-email" class="form-control rounded-3" placeholder="Ex: contato@email.com">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">Descrição dos Serviços Prestados</label>
+              <textarea id="reg-desc" class="form-control rounded-3" rows="3" placeholder="Resumo dos serviços oferecidos, especialidades, horários de atendimento..."></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer border-top-0 pt-0">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-success rounded-pill px-4" onclick="submitPublicRegistration()">
+            <i class="bi bi-send me-1"></i> Enviar Cadastro
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Cadastros Pendentes de Aprovação (Admin Only) -->
+  <div class="modal fade" id="pendingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-header border-bottom-0 pb-0">
+          <h5 class="modal-title fw-bold"><i class="bi bi-clock-history text-danger me-2"></i>Cadastros Pendentes de Aprovação</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Abaixo estão os profissionais que enviaram solicitações públicas de cadastro. Revise e clique em <strong>Aprovar</strong> para publicar no catálogo ou <strong>Rejeitar</strong> para descartar.</p>
+          <div id="pending-list-container" class="mt-3">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+        <div class="modal-footer border-top-0 pt-0">
+          <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     const INITIAL_CONTACTS = ${JSON.stringify(contacts)};
@@ -597,6 +691,7 @@ const htmlContent = `<!DOCTYPE html>
     let customEdits = JSON.parse(localStorage.getItem('contacts_edits') || '{}');
     let deletedIds = JSON.parse(localStorage.getItem('contacts_deleted') || '[]');
     let addedContacts = JSON.parse(localStorage.getItem('contacts_added') || '[]');
+    let pendingContacts = JSON.parse(localStorage.getItem('contacts_pending') || '[]');
     let favorites = JSON.parse(localStorage.getItem('fav_contacts') || '[]');
     let ratings = JSON.parse(localStorage.getItem('ratings_contacts') || '{}');
 
@@ -617,6 +712,8 @@ const htmlContent = `<!DOCTYPE html>
     const adminLoginBtn = document.getElementById('admin-login-btn');
 
     const contactModal = new bootstrap.Modal(document.getElementById('contactModal'));
+    const publicRegisterModal = new bootstrap.Modal(document.getElementById('publicRegisterModal'));
+    const pendingModal = new bootstrap.Modal(document.getElementById('pendingModal'));
 
     // Carregamento Supabase em Tempo Real
     async function loadSupabaseData() {
@@ -687,6 +784,7 @@ const htmlContent = `<!DOCTYPE html>
         document.body.classList.remove('is-admin');
         adminLoginBtn.style.display = 'inline-block';
       }
+      loadPendingContacts();
     }
 
     function promptAdminLogin() {
@@ -1393,6 +1491,246 @@ const htmlContent = `<!DOCTYPE html>
 
         renderContacts();
       }
+    }
+
+    // Public Service Registration & Admin Approval Functions
+    function openPublicRegisterModal() {
+      document.getElementById('publicRegisterForm').reset();
+      publicRegisterModal.show();
+    }
+
+    async function submitPublicRegistration() {
+      const name = document.getElementById('reg-name').value.trim();
+      const phone = document.getElementById('reg-phone').value.trim();
+      if (!name || !phone) {
+        alert('Por favor, informe seu Nome e Telefone/WhatsApp para contato.');
+        return;
+      }
+
+      const org = document.getElementById('reg-org').value.trim();
+      const category = document.getElementById('reg-category').value.trim() || 'Outros / Gerais';
+      let insta = document.getElementById('reg-insta').value.trim();
+      if (insta && !insta.startsWith('@')) insta = '@' + insta;
+
+      const email = document.getElementById('reg-email').value.trim();
+      const desc = document.getElementById('reg-desc').value.trim();
+
+      let digits = phone.replace(/\D/g, '');
+      let waLink = '';
+      if (digits) {
+        if (digits.length === 10 || digits.length === 11) digits = '55' + digits;
+        waLink = 'https://wa.me/' + digits;
+      }
+
+      const fileKey = 'pending_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7) + '.vcf';
+
+      const pendingObj = {
+        filename: fileKey,
+        name: name,
+        org: org,
+        category: category,
+        instagram: insta,
+        phone_primary: phone,
+        phones: phone ? [phone] : [],
+        wa_link: waLink,
+        email: email,
+        wa_description: desc,
+        rating: 0,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      };
+
+      pendingContacts.push(pendingObj);
+      localStorage.setItem('contacts_pending', JSON.stringify(pendingContacts));
+
+      if (supabaseClient) {
+        try {
+          const { error } = await supabaseClient.from('contatos_pendentes').upsert([pendingObj], { onConflict: 'filename' });
+          if (error) {
+            console.log('Inserção Supabase contatos_pendentes fallback:', error);
+          } else {
+            console.log('Cadastro pendente enviado ao Supabase com sucesso!');
+          }
+        } catch(e) {
+          console.error('Erro de rede ao enviar pendente Supabase:', e);
+        }
+      }
+
+      publicRegisterModal.hide();
+      alert('🎉 Cadastro enviado com sucesso!\\n\\nSeu serviço passará pela aprovação do administrador antes de ser exibido no catálogo.');
+      loadPendingContacts();
+    }
+
+    async function loadPendingContacts() {
+      pendingContacts = JSON.parse(localStorage.getItem('contacts_pending') || '[]');
+      if (supabaseClient) {
+        try {
+          const { data, error } = await supabaseClient.from('contatos_pendentes').select('*');
+          if (!error && data && data.length > 0) {
+            pendingContacts = data;
+            localStorage.setItem('contacts_pending', JSON.stringify(pendingContacts));
+          }
+        } catch(e) {
+          console.log('Supabase load pending info:', e);
+        }
+      }
+
+      const count = pendingContacts.length;
+      const countEl = document.getElementById('pending-count');
+      const badgeBtn = document.getElementById('pending-badge-btn');
+
+      if (countEl) countEl.innerText = count;
+
+      if (isAdmin && count > 0) {
+        if (badgeBtn) badgeBtn.style.display = 'inline-block';
+      } else {
+        if (badgeBtn) badgeBtn.style.display = 'none';
+      }
+    }
+
+    function openPendingModal() {
+      if (!isAdmin) return;
+      renderPendingList();
+      pendingModal.show();
+    }
+
+    function renderPendingList() {
+      const container = document.getElementById('pending-list-container');
+      if (!container) return;
+
+      if (pendingContacts.length === 0) {
+        container.innerHTML = \`
+          <div class="text-center py-4 text-muted">
+            <i class="bi bi-check-circle display-4 text-success d-block mb-2"></i>
+            <h6 class="fw-bold text-dark">Nenhum cadastro pendente!</h6>
+            <p class="small mb-0">Todas as solicitações de prestadores foram revisadas.</p>
+          </div>
+        \`;
+        return;
+      }
+
+      let html = '<div class="row g-3">';
+      for (let i = 0; i < pendingContacts.length; i++) {
+        const c = pendingContacts[i];
+        const dateStr = c.created_at ? new Date(c.created_at).toLocaleString('pt-BR') : 'Data não informada';
+        const escFile = escapeHtml(c.filename);
+        const escName = escapeHtml(c.name);
+
+        html += \`
+          <div class="col-12">
+            <div class="card border border-warning-subtle bg-warning-subtle bg-opacity-10 rounded-3 p-3">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div>
+                  <h6 class="fw-bold text-dark mb-1">\${escName}</h6>
+                  <span class="badge bg-warning text-dark border border-warning rounded-pill small mb-2">
+                    ⏳ Pendente de Aprovação
+                  </span>
+                  <div class="small text-muted mb-1"><i class="bi bi-tag me-1"></i><strong>Categoria:</strong> \${escapeHtml(c.category)}</div>
+                  \${c.org ? \`<div class="small text-muted mb-1"><i class="bi bi-building me-1"></i><strong>Empresa:</strong> \${escapeHtml(c.org)}</div>\` : ''}
+                  \${c.phone_primary ? \`<div class="small text-muted mb-1"><i class="bi bi-telephone me-1"></i><strong>Telefone:</strong> \${escapeHtml(c.phone_primary)}</div>\` : ''}
+                  \${c.instagram ? \`<div class="small text-muted mb-1"><i class="bi bi-instagram me-1 text-danger"></i><strong>Instagram:</strong> \${escapeHtml(c.instagram)}</div>\` : ''}
+                  \${c.email ? \`<div class="small text-muted mb-1"><i class="bi bi-envelope me-1"></i><strong>Email:</strong> \${escapeHtml(c.email)}</div>\` : ''}
+                  \${c.wa_description ? \`<div class="small bg-white p-2 rounded border mt-2"><strong>Descrição:</strong> \${escapeHtml(c.wa_description)}</div>\` : ''}
+                  <div class="small text-muted mt-2"><i class="bi bi-clock me-1"></i>Enviado em: \${dateStr}</div>
+                </div>
+                <div class="d-flex align-items-center gap-2 mt-2 mt-sm-0">
+                  <button class="btn btn-sm btn-success rounded-pill px-3" data-filename="\${escFile}" onclick="approvePendingContact(this)">
+                    <i class="bi bi-check-circle me-1"></i> Aprovar
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger rounded-pill px-3" data-filename="\${escFile}" data-name="\${escName}" onclick="rejectPendingContact(this)">
+                    <i class="bi bi-x-circle me-1"></i> Rejeitar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        \`;
+      }
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    async function approvePendingContact(btnOrFilename) {
+      if (!isAdmin) return;
+      const filename = typeof btnOrFilename === 'string' ? btnOrFilename : btnOrFilename.getAttribute('data-filename');
+      const item = pendingContacts.find(c => c.filename === filename);
+      if (!item) return;
+
+      const approvedObj = {
+        filename: item.filename,
+        name: item.name,
+        org: item.org || '',
+        category: item.category || 'Outros / Gerais',
+        phone_primary: item.phone_primary || '',
+        phones: item.phones || [],
+        wa_link: item.wa_link || '',
+        email: item.email || '',
+        instagram: item.instagram || '',
+        wa_description: item.wa_description || '',
+        note: '',
+        rating: 0
+      };
+
+      pendingContacts = pendingContacts.filter(c => c.filename !== filename);
+      localStorage.setItem('contacts_pending', JSON.stringify(pendingContacts));
+
+      addedContacts.push(approvedObj);
+      localStorage.setItem('contacts_added', JSON.stringify(addedContacts));
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from('contatos').upsert([{
+            filename: approvedObj.filename,
+            name: approvedObj.name,
+            org: approvedObj.org,
+            category: approvedObj.category,
+            phone_primary: approvedObj.phone_primary,
+            instagram: approvedObj.instagram,
+            wa_link: approvedObj.wa_link,
+            email: approvedObj.email,
+            wa_description: approvedObj.wa_description,
+            rating: 0
+          }], { onConflict: 'filename' });
+
+          await supabaseClient.from('contatos_pendentes').delete().eq('filename', filename);
+          console.log('Aprovado e movido no Supabase:', filename);
+        } catch(e) {
+          console.error('Erro ao aprovar no Supabase:', e);
+        }
+      }
+
+      alert('✅ O cadastro de "' + approvedObj.name + '" foi APROVADO com sucesso e adicionado ao catálogo!');
+      loadPendingContacts();
+      renderContacts();
+      renderPendingList();
+    }
+
+    async function rejectPendingContact(btnOrFilename, nameVal) {
+      if (!isAdmin) return;
+      let filename, name;
+      if (typeof btnOrFilename === 'string') {
+        filename = btnOrFilename;
+        name = nameVal;
+      } else {
+        filename = btnOrFilename.getAttribute('data-filename');
+        name = btnOrFilename.getAttribute('data-name');
+      }
+
+      if (!confirm('Deseja rejeitar e remover permanentemente a solicitação de cadastro de "' + name + '"?')) return;
+
+      pendingContacts = pendingContacts.filter(c => c.filename !== filename);
+      localStorage.setItem('contacts_pending', JSON.stringify(pendingContacts));
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from('contatos_pendentes').delete().eq('filename', filename);
+        } catch(e) {
+          console.error('Erro ao rejeitar no Supabase:', e);
+        }
+      }
+
+      loadPendingContacts();
+      renderPendingList();
     }
 
     function resetChanges() {
