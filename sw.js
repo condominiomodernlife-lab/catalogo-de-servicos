@@ -1,4 +1,4 @@
-const CACHE_NAME = 'catalogo-v3';
+const CACHE_NAME = 'catalogo-v4';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -25,26 +25,25 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Apenas intercepta requisições GET para a mesma origem (arquivos estáticos locais)
-  if (event.request.method !== 'GET' || !url.origin.includes(self.location.origin)) {
+  // Ignora requisições para o Supabase (deixa o navegador cuidar da rede normalmente)
+  if (url.hostname.includes('supabase.co') || !url.protocol.startsWith('http')) {
+    return;
+  }
+
+  // Apenas trata requisições GET para o PWA
+  if (event.request.method !== 'GET') {
     return;
   }
 
   event.respondWith(
     caches.match(event.request).then(cachedResponse => {
       if (cachedResponse) {
-        // Atualiza o cache em segundo plano sem bloquear a resposta
-        fetch(event.request).then(networkResponse => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, networkResponse));
-          }
-        }).catch(() => {});
         return cachedResponse;
       }
-
       return fetch(event.request).catch(() => {
-        // Retorna uma resposta válida de erro 404 em vez de falhar a Promise (evita TypeError)
-        return new Response('', { status: 404, statusText: 'Not Found' });
+        return caches.match('/index.html').then(fallback => {
+          return fallback || new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+        });
       });
     })
   );
